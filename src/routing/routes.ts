@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../orders/store";
 import { geocodificarComFallback } from "../geocoding/geocode";
+import { atualizarStatusPedido } from "../orders/store";
 import { getHubCoords } from "./hub";
 import { calcularDistanciaKm } from "./haversine";
 
@@ -114,4 +115,43 @@ routingRouter.get("/:id", async (req, res) => {
   const rota = await prisma.route.findUnique({ where: { id: req.params.id } });
   if (!rota) return res.status(404).json({ erro: "Rota não encontrada" });
   res.json(rota);
+});
+
+routingRouter.patch("/:id/iniciar", async (req, res) => {
+  const rota = await prisma.route.update({
+    where: { id: req.params.id },
+    data: { status: "em_andamento" },
+  });
+  res.json(rota);
+});
+
+routingRouter.patch("/:id/paradas/:pedidoId/entregar", async (req, res) => {
+  const { tipo, url } = req.body;
+
+  const pedidoAtualizado = await atualizarStatusPedido(
+    req.params.pedidoId,
+    "entregue",
+    { tipo, url }
+  );
+  if (!pedidoAtualizado)
+    return res.status(404).json({ erro: "Pedido não encontrado" });
+
+  const rota = await prisma.route.findUnique({ where: { id: req.params.id } });
+  if (!rota) return res.status(404).json({ erro: "Rota não encontrada" });
+
+  const paradas = rota.paradas as any[];
+  const idsPedidos = paradas.map((p) => p.pedidoId);
+  const pedidosDaRota = await prisma.order.findMany({
+    where: { id: { in: idsPedidos } },
+  });
+  const todosEntregues = pedidosDaRota.every((p) => p.status === "entregue");
+
+  if (todosEntregues) {
+    await prisma.route.update({
+      where: { id: req.params.id },
+      data: { status: "concluida" },
+    });
+  }
+
+  res.json({ pedido: pedidoAtualizado, rotaConcluida: todosEntregues });
 });

@@ -26,3 +26,11 @@ driversRouter.get("/:id", async (req, res) => {
   if (!motorista) return res.status(404).json({ erro: "Motorista não encontrado" });
   res.json(motorista);
 });
+
+driversRouter.get("/:id/rotas", async (req, res) => {
+  const rotas = await prisma.route.findMany({
+    where: { driverId: req.params.id },
+    orderBy: { criadoEm: "desc" },
+  });
+  res.json(rotas);
+});
