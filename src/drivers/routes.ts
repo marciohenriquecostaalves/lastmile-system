@@ -1,16 +1,23 @@
 import { Router } from "express";
 import { prisma } from "../orders/store";
+import { criarMotoristaSchema } from "./validation";
 
 export const driversRouter = Router();
 
 driversRouter.post("/", async (req, res) => {
-  const motorista = await prisma.driver.create({
-    data: {
-      nome: req.body.nome,
-      telefone: req.body.telefone,
-      veiculo: req.body.veiculo,
-    },
-  });
+  const validacao = criarMotoristaSchema.safeParse(req.body);
+
+  if (!validacao.success) {
+    return res.status(400).json({
+      erro: "Dados invalidos",
+      detalhes: validacao.error.issues.map((i) => ({
+        campo: i.path.join("."),
+        mensagem: i.message,
+      })),
+    });
+  }
+
+  const motorista = await prisma.driver.create({ data: validacao.data });
   res.status(201).json(motorista);
 });
 

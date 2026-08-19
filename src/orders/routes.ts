@@ -6,6 +6,7 @@ import {
   buscarPedido,
   atualizarStatusPedido,
 } from "./store";
+import { criarPedidoSchema } from "./validation";
 
 export const ordersRouter = Router();
 
@@ -33,13 +34,27 @@ function paraFormatoApi(pedido: any) {
 }
 
 ordersRouter.post("/", async (req, res) => {
+  const validacao = criarPedidoSchema.safeParse(req.body);
+
+  if (!validacao.success) {
+    return res.status(400).json({
+      erro: "Dados invalidos",
+      detalhes: validacao.error.issues.map((i) => ({
+        campo: i.path.join("."),
+        mensagem: i.message,
+      })),
+    });
+  }
+
+  const dados = validacao.data;
+
   const novoPedido = await criarPedido({
     codigoRastreio: "LM-" + randomUUID().slice(0, 8).toUpperCase(),
-    destinatarioNome: req.body.destinatario.nome,
-    destinatarioTelefone: req.body.destinatario.telefone,
-    enderecoColeta: req.body.enderecoColeta,
-    enderecoEntrega: req.body.enderecoEntrega,
-    janelaEntrega: req.body.janelaEntrega,
+    destinatarioNome: dados.destinatario.nome,
+    destinatarioTelefone: dados.destinatario.telefone,
+    enderecoColeta: dados.enderecoColeta,
+    enderecoEntrega: dados.enderecoEntrega,
+    janelaEntrega: dados.janelaEntrega,
   });
   res.status(201).json(paraFormatoApi(novoPedido));
 });

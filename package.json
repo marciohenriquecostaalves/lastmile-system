@@ -20,7 +20,8 @@
   "homepage": "https://github.com/marciohenriquecostaalves/lastmile-system#readme",
   "dependencies": {
     "@prisma/client": "^6.19.3",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
