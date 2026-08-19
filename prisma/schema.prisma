@@ -8,16 +8,19 @@ datasource db {
 }
 
 model Order {
-  id                   String    @id @default(uuid())
-  codigoRastreio       String    @unique
-  destinatarioNome     String
-  destinatarioTelefone String
-  enderecoColeta       String
-  enderecoEntrega      String
-  janelaEntrega        String
-  status               String    @default("recebido")
-  comprovanteTipo      String?
-  comprovanteUrl       String?
-  comprovanteData      DateTime?
-  criadoEm             DateTime  @default(now())
+  id                    String    @id @default(uuid())
+  codigoRastreio        String    @unique
+  destinatarioNome      String
+  destinatarioTelefone  String
+  enderecoColeta        String
+  enderecoEntrega       String
+  janelaEntrega         String
+  status                String    @default("recebido")
+  latitude              Float?
+  longitude             Float?
+  localizacaoAproximada Boolean   @default(false)
+  comprovanteTipo       String?
+  comprovanteUrl        String?
+  comprovanteData       DateTime?
+  criadoEm              DateTime  @default(now())
 }
