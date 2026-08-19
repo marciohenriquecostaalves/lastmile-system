@@ -1,0 +1,1 @@
+ import { Order } from "./types"; const orders: Order[] = []; export function criarPedido(pedido: Order) { orders.push(pedido); return pedido; } export function listarPedidos() { return orders; } export function buscarPedido(id: string) { return orders.find((o) => o.id === id); } 

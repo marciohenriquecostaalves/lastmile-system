@@ -1,0 +1,1 @@
+export type OrderStatus = "recebido" | "em_rota" | "entregue" | "falhou"; export interface Order { id: string; destinatario: { nome: string; telefone: string; }; enderecoColeta: string; enderecoEntrega: string; janelaEntrega: string; status: OrderStatus; criadoEm: string; }
