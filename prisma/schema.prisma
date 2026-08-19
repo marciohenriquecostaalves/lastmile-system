@@ -24,3 +24,20 @@ model Order {
   comprovanteData       DateTime?
   criadoEm              DateTime  @default(now())
 }
+
+model Driver {
+  id        String   @id @default(uuid())
+  nome      String
+  telefone  String
+  veiculo   String?
+  criadoEm  DateTime @default(now())
+}
+
+model Route {
+  id               String   @id @default(uuid())
+  driverId         String?
+  distanciaTotalKm Float
+  paradas          Json
+  status           String   @default("planejada")
+  criadoEm         DateTime @default(now())
+}

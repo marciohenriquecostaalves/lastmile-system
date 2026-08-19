@@ -7,6 +7,8 @@ import { calcularDistanciaKm } from "./haversine";
 export const routingRouter = Router();
 
 routingRouter.post("/gerar", async (req, res) => {
+  const { driverId } = req.body;
+
   const pedidosPendentes = await prisma.order.findMany({
     where: { status: "recebido" },
   });
@@ -40,7 +42,7 @@ routingRouter.post("/gerar", async (req, res) => {
   const hub = await getHubCoords();
 
   const restantes = [...pedidosComCoordenadas];
-  const rota: any[] = [];
+  const paradas: any[] = [];
   let pontoAtual = hub;
   let distanciaTotal = 0;
 
@@ -62,8 +64,8 @@ routingRouter.post("/gerar", async (req, res) => {
     const proximoPedido = restantes.splice(indiceMaisProximo, 1)[0];
     distanciaTotal += menorDistancia;
 
-    rota.push({
-      sequencia: rota.length + 1,
+    paradas.push({
+      sequencia: paradas.length + 1,
       pedidoId: proximoPedido.id,
       codigoRastreio: proximoPedido.codigoRastreio,
       endereco: proximoPedido.enderecoEntrega,
@@ -77,14 +79,39 @@ routingRouter.post("/gerar", async (req, res) => {
     };
   }
 
-  res.json({
-    totalParadas: rota.length,
-    distanciaTotalKm: Number(distanciaTotal.toFixed(2)),
-    paradas: rota,
+  const rotaSalva = await prisma.route.create({
+    data: {
+      driverId: driverId ?? null,
+      distanciaTotalKm: Number(distanciaTotal.toFixed(2)),
+      paradas: paradas,
+      status: "planejada",
+    },
+  });
+
+  if (paradas.length > 0) {
+    await prisma.order.updateMany({
+      where: { id: { in: paradas.map((p) => p.pedidoId) } },
+      data: { status: "em_rota" },
+    });
+  }
+
+  res.status(201).json({
+    ...rotaSalva,
     pedidosNaoLocalizados: pedidosSemLocalizacao.map((p) => ({
       pedidoId: p.id,
       codigoRastreio: p.codigoRastreio,
       endereco: p.enderecoEntrega,
     })),
   });
+});
+
+routingRouter.get("/", async (req, res) => {
+  const rotas = await prisma.route.findMany({ orderBy: { criadoEm: "desc" } });
+  res.json(rotas);
+});
+
+routingRouter.get("/:id", async (req, res) => {
+  const rota = await prisma.route.findUnique({ where: { id: req.params.id } });
+  if (!rota) return res.status(404).json({ erro: "Rota não encontrada" });
+  res.json(rota);
 });

@@ -1,6 +1,7 @@
 import express from "express";
 import { ordersRouter } from "./orders/routes";
 import { routingRouter } from "./routing/routes";
+import { driversRouter } from "./drivers/routes";
 
 const app = express();
 const PORT = 3000;
@@ -13,6 +14,7 @@ app.get("/health", (req, res) => {
 
 app.use("/orders", ordersRouter);
 app.use("/routes", routingRouter);
+app.use("/drivers", driversRouter);
 
 app.listen(PORT, () => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);
