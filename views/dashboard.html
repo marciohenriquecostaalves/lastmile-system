@@ -19,6 +19,9 @@
   .badge.concluida { background:#166534; }
   button { background:#0284c7; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:14px; }
   button:hover { background:#0369a1; }
+  .topo { display:flex; justify-content:space-between; align-items:center; }
+  .btn-sair { background:#334155; }
+  .btn-sair:hover { background:#475569; }
   .painel-forms { display:flex; gap:24px; flex-wrap:wrap; margin-top:16px; }
   .card { background:#1e293b; padding:16px; border-radius:8px; min-width:280px; flex:1; }
   .card h3 { margin-top:0; color:#38bdf8; font-size:15px; }
@@ -31,7 +34,10 @@
 </style>
 </head>
 <body>
-  <h1>Last Mile — Painel Operacional</h1>
+  <div class="topo">
+    <h1>Last Mile — Painel Operacional</h1>
+    <button class="btn-sair" onclick="sair()">Sair</button>
+  </div>
   <button onclick="carregarTudo()">Atualizar</button>
 
   <div class="painel-forms">
@@ -99,6 +105,11 @@
   </table>
 
 <script>
+async function sair() {
+  await fetch('/auth/logout', { method: 'POST' });
+  window.location.href = '/login.html';
+}
+
 async function carregarPedidos() {
   const resposta = await fetch('/orders');
   const pedidos = await resposta.json();
