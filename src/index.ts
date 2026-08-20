@@ -1,4 +1,5 @@
 import express from "express";
+import path from "path";
 import { ordersRouter } from "./orders/routes";
 import { routingRouter } from "./routing/routes";
 import { driversRouter } from "./drivers/routes";
@@ -7,6 +8,7 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+app.use(express.static(path.join(__dirname, "..", "public")));
 
 app.get("/health", (req, res) => {
   res.json({ status: "ok", message: "Sistema Last Mile rodando" });

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Last Mile - Painel</title>
+<style>
+  body { font-family: -apple-system, sans-serif; background:#0f172a; color:#e2e8f0; margin:0; padding:24px; }
+  h1 { color:#38bdf8; }
+  h2 { margin-top:32px; border-bottom:1px solid #334155; padding-bottom:8px; }
+  table { width:100%; border-collapse: collapse; margin-top:12px; }
+  th, td { text-align:left; padding:8px; border-bottom:1px solid #1e293b; font-size:14px; }
+  th { color:#94a3b8; text-transform:uppercase; font-size:12px; }
+  .badge { padding:2px 8px; border-radius:12px; font-size:12px; }
+  .badge.recebido { background:#334155; }
+  .badge.em_rota { background:#854d0e; }
+  .badge.entregue { background:#166534; }
+  .badge.planejada { background:#334155; }
+  .badge.em_andamento { background:#854d0e; }
+  .badge.concluida { background:#166534; }
+  button { background:#0284c7; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:14px; }
+  button:hover { background:#0369a1; }
+</style>
+</head>
+<body>
+  <h1>Last Mile — Painel Operacional</h1>
+  <button onclick="carregarTudo()">Atualizar</button>
+
+  <h2>Pedidos</h2>
+  <table>
+    <thead><tr><th>Rastreio</th><th>Destinatario</th><th>Endereco</th><th>Status</th></tr></thead>
+    <tbody id="tabela-pedidos"></tbody>
+  </table>
+
+  <h2>Rotas</h2>
+  <table>
+    <thead><tr><th>ID</th><th>Motorista</th><th>Paradas</th><th>Distancia (km)</th><th>Status</th></tr></thead>
+    <tbody id="tabela-rotas"></tbody>
+  </table>
+
+  <h2>Motoristas</h2>
+  <table>
+    <thead><tr><th>Nome</th><th>Telefone</th><th>Veiculo</th></tr></thead>
+    <tbody id="tabela-motoristas"></tbody>
+  </table>
+
+<script>
+async function carregarPedidos() {
+  const resposta = await fetch('/orders');
+  const pedidos = await resposta.json();
+  const corpo = document.getElementById('tabela-pedidos');
+  corpo.innerHTML = pedidos.map(p => `
+    <tr>
+      <td>${p.codigoRastreio}</td>
+      <td>${p.destinatario.nome}</td>
+      <td>${p.enderecoEntrega}</td>
+      <td><span class="badge ${p.status}">${p.status}</span></td>
+    </tr>
+  `).join('');
+}
+
+async function carregarRotas() {
+  const resposta = await fetch('/routes');
+  const rotas = await resposta.json();
+  const corpo = document.getElementById('tabela-rotas');
+  corpo.innerHTML = rotas.map(r => `
+    <tr>
+      <td>${r.id.slice(0, 8)}</td>
+      <td>${r.driverId ? r.driverId.slice(0, 8) : '-'}</td>
+      <td>${r.paradas.length}</td>
+      <td>${r.distanciaTotalKm}</td>
+      <td><span class="badge ${r.status}">${r.status}</span></td>
+    </tr>
+  `).join('');
+}
+
+async function carregarMotoristas() {
+  const resposta = await fetch('/drivers');
+  const motoristas = await resposta.json();
+  const corpo = document.getElementById('tabela-motoristas');
+  corpo.innerHTML = motoristas.map(m => `
+    <tr>
+      <td>${m.nome}</td>
+      <td>${m.telefone}</td>
+      <td>${m.veiculo || '-'}</td>
+    </tr>
+  `).join('');
+}
+
+function carregarTudo() {
+  carregarPedidos();
+  carregarRotas();
+  carregarMotoristas();
+}
+
+carregarTudo();
+</script>
+</body>
+</html>
