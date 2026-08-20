@@ -19,11 +19,66 @@
   .badge.concluida { background:#166534; }
   button { background:#0284c7; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:14px; }
   button:hover { background:#0369a1; }
+  .painel-forms { display:flex; gap:24px; flex-wrap:wrap; margin-top:16px; }
+  .card { background:#1e293b; padding:16px; border-radius:8px; min-width:280px; flex:1; }
+  .card h3 { margin-top:0; color:#38bdf8; font-size:15px; }
+  label { display:block; font-size:12px; color:#94a3b8; margin-top:8px; }
+  input, select { width:100%; padding:6px; margin-top:2px; border-radius:4px; border:1px solid #334155; background:#0f172a; color:#e2e8f0; box-sizing:border-box; }
+  .card button { margin-top:12px; width:100%; }
+  .mensagem { margin-top:8px; font-size:13px; }
+  .mensagem.sucesso { color:#4ade80; }
+  .mensagem.erro { color:#f87171; }
 </style>
 </head>
 <body>
   <h1>Last Mile — Painel Operacional</h1>
   <button onclick="carregarTudo()">Atualizar</button>
+
+  <div class="painel-forms">
+    <div class="card">
+      <h3>Novo Pedido</h3>
+      <form onsubmit="criarPedido(event)">
+        <label>Nome do destinatario</label>
+        <input required id="p-nome">
+        <label>Telefone</label>
+        <input required id="p-telefone">
+        <label>Endereco de coleta</label>
+        <input required id="p-coleta">
+        <label>Endereco de entrega</label>
+        <input required id="p-entrega">
+        <label>Janela de entrega</label>
+        <input required id="p-janela" placeholder="hoje ate 18h">
+        <button type="submit">Criar pedido</button>
+      </form>
+      <div id="msg-pedido" class="mensagem"></div>
+    </div>
+
+    <div class="card">
+      <h3>Novo Motorista</h3>
+      <form onsubmit="criarMotorista(event)">
+        <label>Nome</label>
+        <input required id="m-nome">
+        <label>Telefone</label>
+        <input required id="m-telefone">
+        <label>Veiculo</label>
+        <input id="m-veiculo" placeholder="Moto, Carro, Van...">
+        <button type="submit">Cadastrar motorista</button>
+      </form>
+      <div id="msg-motorista" class="mensagem"></div>
+    </div>
+
+    <div class="card">
+      <h3>Gerar Rota</h3>
+      <form onsubmit="gerarRota(event)">
+        <label>Motorista</label>
+        <select id="r-motorista">
+          <option value="">Sem motorista definido</option>
+        </select>
+        <button type="submit">Gerar rota com pedidos pendentes</button>
+      </form>
+      <div id="msg-rota" class="mensagem"></div>
+    </div>
+  </div>
 
   <h2>Pedidos</h2>
   <table>
@@ -84,12 +139,106 @@ async function carregarMotoristas() {
       <td>${m.veiculo || '-'}</td>
     </tr>
   `).join('');
+
+  const select = document.getElementById('r-motorista');
+  select.innerHTML = '<option value="">Sem motorista definido</option>' +
+    motoristas.map(m => `<option value="${m.id}">${m.nome}</option>`).join('');
 }
 
 function carregarTudo() {
   carregarPedidos();
   carregarRotas();
   carregarMotoristas();
+}
+
+async function criarPedido(event) {
+  event.preventDefault();
+  const msg = document.getElementById('msg-pedido');
+  msg.textContent = 'Enviando...';
+  msg.className = 'mensagem';
+
+  const corpo = {
+    destinatario: {
+      nome: document.getElementById('p-nome').value,
+      telefone: document.getElementById('p-telefone').value,
+    },
+    enderecoColeta: document.getElementById('p-coleta').value,
+    enderecoEntrega: document.getElementById('p-entrega').value,
+    janelaEntrega: document.getElementById('p-janela').value,
+  };
+
+  const resposta = await fetch('/orders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(corpo),
+  });
+  const dados = await resposta.json();
+
+  if (resposta.ok) {
+    msg.textContent = 'Pedido criado: ' + dados.codigoRastreio;
+    msg.className = 'mensagem sucesso';
+    event.target.reset();
+    carregarPedidos();
+  } else {
+    msg.textContent = 'Erro: ' + (dados.detalhes ? dados.detalhes.map(d => d.mensagem).join(', ') : dados.erro);
+    msg.className = 'mensagem erro';
+  }
+}
+
+async function criarMotorista(event) {
+  event.preventDefault();
+  const msg = document.getElementById('msg-motorista');
+  msg.textContent = 'Enviando...';
+  msg.className = 'mensagem';
+
+  const corpo = {
+    nome: document.getElementById('m-nome').value,
+    telefone: document.getElementById('m-telefone').value,
+    veiculo: document.getElementById('m-veiculo').value || undefined,
+  };
+
+  const resposta = await fetch('/drivers', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(corpo),
+  });
+  const dados = await resposta.json();
+
+  if (resposta.ok) {
+    msg.textContent = 'Motorista cadastrado: ' + dados.nome;
+    msg.className = 'mensagem sucesso';
+    event.target.reset();
+    carregarMotoristas();
+  } else {
+    msg.textContent = 'Erro: ' + (dados.detalhes ? dados.detalhes.map(d => d.mensagem).join(', ') : dados.erro);
+    msg.className = 'mensagem erro';
+  }
+}
+
+async function gerarRota(event) {
+  event.preventDefault();
+  const msg = document.getElementById('msg-rota');
+  msg.textContent = 'Gerando rota (pode levar alguns segundos)...';
+  msg.className = 'mensagem';
+
+  const driverId = document.getElementById('r-motorista').value;
+  const corpo = driverId ? { driverId } : {};
+
+  const resposta = await fetch('/routes/gerar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(corpo),
+  });
+  const dados = await resposta.json();
+
+  if (resposta.ok) {
+    msg.textContent = `Rota gerada com ${dados.paradas.length} parada(s), ${dados.distanciaTotalKm} km.`;
+    msg.className = 'mensagem sucesso';
+    carregarTudo();
+  } else {
+    msg.textContent = 'Erro: ' + (dados.erro || 'Nao foi possivel gerar a rota');
+    msg.className = 'mensagem erro';
+  }
 }
 
 carregarTudo();
