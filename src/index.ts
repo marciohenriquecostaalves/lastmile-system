@@ -6,6 +6,7 @@ import { ordersRouter } from "./orders/routes";
 import { routingRouter } from "./routing/routes";
 import { driversRouter } from "./drivers/routes";
 import { authRouter } from "./auth/routes";
+import { motoristaRouter } from "./motorista/routes";
 import { exigirAutenticacaoApi, exigirAutenticacaoPagina } from "./auth/middleware";
 
 const app = express();
@@ -33,9 +34,14 @@ app.get("/", exigirAutenticacaoPagina, (req, res) => {
   res.sendFile(path.join(__dirname, "..", "views", "dashboard.html"));
 });
 
+app.get("/motorista/:driverId", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "views", "motorista.html"));
+});
+
 app.use("/orders", exigirAutenticacaoApi, ordersRouter);
 app.use("/routes", exigirAutenticacaoApi, routingRouter);
 app.use("/drivers", exigirAutenticacaoApi, driversRouter);
+app.use("/motorista", motoristaRouter);
 
 app.listen(PORT, () => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);

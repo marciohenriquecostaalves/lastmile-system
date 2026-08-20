@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Minha Rota</title>
+<style>
+  body { font-family: -apple-system, sans-serif; background:#0f172a; color:#e2e8f0; margin:0; padding:16px; }
+  h1 { color:#38bdf8; font-size:20px; }
+  h2 { font-size:15px; color:#94a3b8; margin-top:24px; }
+  .rota-card { background:#1e293b; border-radius:8px; padding:16px; margin-top:12px; }
+  .rota-topo { display:flex; justify-content:space-between; align-items:center; }
+  .badge { padding:3px 10px; border-radius:12px; font-size:12px; }
+  .badge.planejada { background:#334155; }
+  .badge.em_andamento { background:#854d0e; }
+  .badge.entregue { background:#166534; }
+  .badge.recebido, .badge.em_rota { background:#334155; }
+  .parada { border-top:1px solid #334155; padding:12px 0; }
+  .parada strong { font-size:15px; }
+  .parada p { margin:4px 0; font-size:13px; color:#cbd5e1; }
+  button { background:#0284c7; color:white; border:none; padding:12px; border-radius:6px; cursor:pointer; font-size:15px; width:100%; margin-top:8px; }
+  button:hover { background:#0369a1; }
+  button:disabled { background:#334155; cursor:default; }
+  input { width:100%; padding:10px; margin-top:6px; border-radius:6px; border:1px solid #334155; background:#0f172a; color:#e2e8f0; box-sizing:border-box; font-size:14px; }
+  .vazio { color:#94a3b8; margin-top:24px; }
+</style>
+</head>
+<body>
+  <h1 id="titulo">Minha Rota</h1>
+  <div id="conteudo">Carregando...</div>
+
+<script>
+const driverId = window.location.pathname.split('/')[2];
+
+async function carregar() {
+  const resposta = await fetch(`/motorista/${driverId}/rotas`);
+  if (!resposta.ok) {
+    document.getElementById('conteudo').innerHTML = '<p class="vazio">Motorista nao encontrado.</p>';
+    return;
+  }
+  const dados = await resposta.json();
+  document.getElementById('titulo').textContent = 'Ola, ' + dados.motorista.nome;
+
+  const container = document.getElementById('conteudo');
+
+  if (dados.rotas.length === 0) {
+    container.innerHTML = '<p class="vazio">Nenhuma rota pendente no momento.</p>';
+    return;
+  }
+
+  container.innerHTML = dados.rotas.map(rota => `
+    <div class="rota-card">
+      <div class="rota-topo">
+        <strong>Rota (${rota.paradas.length} paradas, ${rota.distanciaTotalKm} km)</strong>
+        <span class="badge ${rota.status}">${rota.status}</span>
+      </div>
+      ${rota.status === 'planejada' ? `<button onclick="iniciarRota('${rota.id}')">Iniciar rota</button>` : ''}
+      ${rota.paradas.map(p => `
+        <div class="parada">
+          <strong>${p.sequencia}. ${p.destinatarioNome || ''}</strong>
+          <p>${p.endereco}</p>
+          <p>Rastreio: ${p.codigoRastreio} — <span class="badge ${p.status}">${p.status}</span></p>
+          ${p.status !== 'entregue' ? `
+            <input type="text" id="url-${p.pedidoId}" placeholder="Nome do arquivo do comprovante (ex: foto1.jpg)">
+            <button onclick="marcarEntregue('${rota.id}', '${p.pedidoId}')" ${rota.status !== 'em_andamento' ? 'disabled' : ''}>
+              ${rota.status !== 'em_andamento' ? 'Inicie a rota primeiro' : 'Marcar como entregue'}
+            </button>
+          ` : ''}
+        </div>
+      `).join('')}
+    </div>
+  `).join('');
+}
+
+async function iniciarRota(rotaId) {
+  await fetch(`/motorista/${driverId}/rotas/${rotaId}/iniciar`, { method: 'PATCH' });
+  carregar();
+}
+
+async function marcarEntregue(rotaId, pedidoId) {
+  const url = document.getElementById('url-' + pedidoId).value || 'comprovante.jpg';
+  await fetch(`/motorista/${driverId}/rotas/${rotaId}/paradas/${pedidoId}/entregar`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ tipo: 'foto', url }),
+  });
+  carregar();
+}
+
+carregar();
+</script>
+</body>
+</html>
