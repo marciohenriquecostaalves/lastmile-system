@@ -20,7 +20,7 @@
       <p class="page-subtitle">Geracao e acompanhamento de rotas de entrega</p>
     </div>
 
-    <div id="aviso-leitura" class="aviso oculto">Seu papel tem acesso de visualizacao. Geracao de rotas esta desabilitada.</div>
+    <div id="aviso-leitura" class="aviso oculto">Seu papel tem acesso de visualizacao (ou nao esta vinculado a uma filial). Geracao de rotas esta desabilitada.</div>
 
     <div class="card oculto" id="form-gerar-rota" style="max-width:420px; margin-bottom:28px;">
       <h3>Gerar rota</h3>
@@ -48,12 +48,11 @@
 let mapa, camadaRota;
 let hubCoords = null;
 
-document.addEventListener('sessaoCarregada', async (e) => {
-  const podeEscrever = ['gerente', 'supervisor', 'coordenador', 'dispatcher'].includes(e.detail.papel);
-  document.getElementById('form-gerar-rota').classList.toggle('oculto', !podeEscrever);
-  document.getElementById('aviso-leitura').classList.toggle('oculto', podeEscrever);
+document.addEventListener('sessaoCarregada', async () => {
+  document.getElementById('form-gerar-rota').classList.toggle('oculto', !window.podeOperar);
+  document.getElementById('aviso-leitura').classList.toggle('oculto', window.podeOperar);
 
-  if (podeEscrever) {
+  if (window.podeOperar) {
     const motoristas = await (await fetch('/drivers')).json();
     document.getElementById('r-motorista').innerHTML = '<option value="">Sem motorista definido</option>' +
       motoristas.map(m => `<option value="${m.id}">${m.nome}</option>`).join('');

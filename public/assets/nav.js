@@ -17,6 +17,7 @@ async function montarNavegacao() {
   }
 
   window.sessaoAtual = dados;
+  window.podeOperar = ['gerente', 'supervisor', 'coordenador', 'dispatcher'].includes(dados.papel) && !!dados.filialId;
 
   const caminhoAtual = window.location.pathname;
   const itensVisiveis = ITENS_MENU.filter(

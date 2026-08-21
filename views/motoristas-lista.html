@@ -14,7 +14,7 @@
       <p class="page-subtitle">Cadastro e acompanhamento da frota</p>
     </div>
 
-    <div id="aviso-leitura" class="aviso oculto">Seu papel tem acesso de visualizacao. Cadastro esta desabilitado.</div>
+    <div id="aviso-leitura" class="aviso oculto">Seu papel tem acesso de visualizacao (ou nao esta vinculado a uma filial). Cadastro esta desabilitado.</div>
 
     <div class="card oculto" id="form-novo-motorista" style="max-width:480px; margin-bottom:28px;">
       <h3>Novo motorista</h3>
@@ -38,10 +38,9 @@
 </div>
 <script src="/assets/nav.js"></script>
 <script>
-document.addEventListener('sessaoCarregada', (e) => {
-  const podeEscrever = ['gerente', 'supervisor', 'coordenador', 'dispatcher'].includes(e.detail.papel);
-  document.getElementById('form-novo-motorista').classList.toggle('oculto', !podeEscrever);
-  document.getElementById('aviso-leitura').classList.toggle('oculto', podeEscrever);
+document.addEventListener('sessaoCarregada', () => {
+  document.getElementById('form-novo-motorista').classList.toggle('oculto', !window.podeOperar);
+  document.getElementById('aviso-leitura').classList.toggle('oculto', window.podeOperar);
   carregarMotoristas();
 });
 
