@@ -13,6 +13,10 @@
   .acoes-pedido button { padding:5px 10px; font-size:12px; }
   .btn-perigo { background: var(--danger-soft); color: var(--danger); }
   .btn-perigo:hover { background: #f5d5d1; }
+  .barra-filtros { display:flex; gap:12px; margin-bottom:16px; align-items:flex-end; }
+  .barra-filtros > div { flex: 1; }
+  .barra-filtros label { margin-top: 0; }
+  .contador-resultados { color: var(--ink-soft); font-size: 12px; margin-bottom: 8px; }
 </style>
 </head>
 <body>
@@ -43,6 +47,24 @@
       </form>
       <div id="msg-pedido" class="mensagem"></div>
     </div>
+
+    <div class="barra-filtros">
+      <div>
+        <label>Buscar</label>
+        <input id="filtro-busca" placeholder="Rastreio, destinatario ou endereco..." oninput="aplicarFiltros()">
+      </div>
+      <div style="max-width:200px;">
+        <label>Status</label>
+        <select id="filtro-status" onchange="aplicarFiltros()">
+          <option value="">Todos</option>
+          <option value="recebido">Recebido</option>
+          <option value="em_rota">Em rota</option>
+          <option value="entregue">Entregue</option>
+          <option value="cancelado">Cancelado</option>
+        </select>
+      </div>
+    </div>
+    <div class="contador-resultados" id="contador-resultados"></div>
 
     <table>
       <thead><tr><th>Rastreio</th><th>Destinatario</th><th>Endereco</th><th>Status</th><th>Acoes</th></tr></thead>
@@ -88,7 +110,29 @@ document.addEventListener('sessaoCarregada', () => {
 async function carregarPedidos() {
   const pedidos = await (await fetch('/orders')).json();
   pedidosCarregados = pedidos;
+  aplicarFiltros();
+}
 
+function aplicarFiltros() {
+  const busca = document.getElementById('filtro-busca').value.toLowerCase().trim();
+  const statusFiltro = document.getElementById('filtro-status').value;
+
+  const filtrados = pedidosCarregados.filter(p => {
+    const bateBusca = !busca ||
+      p.codigoRastreio.toLowerCase().includes(busca) ||
+      p.destinatario.nome.toLowerCase().includes(busca) ||
+      p.enderecoEntrega.toLowerCase().includes(busca);
+    const bateStatus = !statusFiltro || p.status === statusFiltro;
+    return bateBusca && bateStatus;
+  });
+
+  document.getElementById('contador-resultados').textContent =
+    `${filtrados.length} de ${pedidosCarregados.length} pedido(s)`;
+
+  renderizarTabela(filtrados);
+}
+
+function renderizarTabela(pedidos) {
   document.getElementById('tabela-pedidos').innerHTML = pedidos.map(p => `
     <tr>
       <td class="mono">${p.codigoRastreio}</td>
@@ -104,7 +148,7 @@ async function carregarPedidos() {
         ` : '-'}
       </td>
     </tr>
-  `).join('') || '<tr><td colspan="5" class="page-subtitle">Nenhum pedido ainda.</td></tr>';
+  `).join('') || '<tr><td colspan="5" class="page-subtitle">Nenhum pedido encontrado.</td></tr>';
 }
 
 async function criarPedido(event) {
