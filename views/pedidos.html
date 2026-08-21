@@ -4,6 +4,16 @@
 <meta charset="UTF-8">
 <title>Pedidos - Last Mile</title>
 <link rel="stylesheet" href="/assets/styles.css">
+<style>
+  .modal-fundo { display:none; position:fixed; inset:0; background:rgba(20,33,61,0.4); align-items:center; justify-content:center; z-index:10; }
+  .modal-fundo.aberto { display:flex; }
+  .modal-caixa { background:var(--surface); border-radius:10px; padding:24px; width:420px; max-width:90vw; }
+  .modal-caixa h3 { margin-top:0; }
+  .acoes-pedido { display:flex; gap:8px; }
+  .acoes-pedido button { padding:5px 10px; font-size:12px; }
+  .btn-perigo { background: var(--danger-soft); color: var(--danger); }
+  .btn-perigo:hover { background: #f5d5d1; }
+</style>
 </head>
 <body>
 <div class="app-shell">
@@ -35,13 +45,40 @@
     </div>
 
     <table>
-      <thead><tr><th>Rastreio</th><th>Destinatario</th><th>Endereco</th><th>Status</th></tr></thead>
+      <thead><tr><th>Rastreio</th><th>Destinatario</th><th>Endereco</th><th>Status</th><th>Acoes</th></tr></thead>
       <tbody id="tabela-pedidos"></tbody>
     </table>
   </main>
 </div>
+
+<div class="modal-fundo" id="modal-editar">
+  <div class="modal-caixa">
+    <h3>Editar pedido</h3>
+    <form onsubmit="salvarEdicao(event)">
+      <input type="hidden" id="e-id">
+      <label>Nome do destinatario</label>
+      <input required id="e-nome">
+      <label>Telefone</label>
+      <input required id="e-telefone">
+      <label>Endereco de coleta</label>
+      <input required id="e-coleta">
+      <label>Endereco de entrega</label>
+      <input required id="e-entrega">
+      <label>Janela de entrega</label>
+      <input required id="e-janela">
+      <div style="display:flex; gap:8px; margin-top:16px;">
+        <button type="submit">Salvar alteracoes</button>
+        <button type="button" class="btn-secondary" onclick="fecharModal()">Cancelar</button>
+      </div>
+    </form>
+    <div id="msg-edicao" class="mensagem"></div>
+  </div>
+</div>
+
 <script src="/assets/nav.js"></script>
 <script>
+let pedidosCarregados = [];
+
 document.addEventListener('sessaoCarregada', () => {
   document.getElementById('form-novo-pedido').classList.toggle('oculto', !window.podeOperar);
   document.getElementById('aviso-leitura').classList.toggle('oculto', window.podeOperar);
@@ -50,14 +87,24 @@ document.addEventListener('sessaoCarregada', () => {
 
 async function carregarPedidos() {
   const pedidos = await (await fetch('/orders')).json();
+  pedidosCarregados = pedidos;
+
   document.getElementById('tabela-pedidos').innerHTML = pedidos.map(p => `
     <tr>
       <td class="mono">${p.codigoRastreio}</td>
       <td>${p.destinatario.nome}</td>
       <td>${p.enderecoEntrega}</td>
       <td><span class="badge ${p.status}">${p.status}</span></td>
+      <td>
+        ${window.podeOperar && p.status === 'recebido' ? `
+          <div class="acoes-pedido">
+            <button class="btn-secondary" onclick="abrirEdicao('${p.id}')">Editar</button>
+            <button class="btn-perigo" onclick="cancelarPedido('${p.id}')">Cancelar</button>
+          </div>
+        ` : '-'}
+      </td>
     </tr>
-  `).join('') || '<tr><td colspan="4" class="page-subtitle">Nenhum pedido ainda.</td></tr>';
+  `).join('') || '<tr><td colspan="5" class="page-subtitle">Nenhum pedido ainda.</td></tr>';
 }
 
 async function criarPedido(event) {
@@ -91,6 +138,70 @@ async function criarPedido(event) {
   } else {
     msg.textContent = 'Erro: ' + (dados.detalhes ? dados.detalhes.map(d => d.mensagem).join(', ') : dados.erro);
     msg.className = 'mensagem erro';
+  }
+}
+
+function abrirEdicao(id) {
+  const pedido = pedidosCarregados.find(p => p.id === id);
+  if (!pedido) return;
+
+  document.getElementById('e-id').value = pedido.id;
+  document.getElementById('e-nome').value = pedido.destinatario.nome;
+  document.getElementById('e-telefone').value = pedido.destinatario.telefone;
+  document.getElementById('e-coleta').value = pedido.enderecoColeta;
+  document.getElementById('e-entrega').value = pedido.enderecoEntrega;
+  document.getElementById('e-janela').value = pedido.janelaEntrega;
+  document.getElementById('msg-edicao').textContent = '';
+  document.getElementById('modal-editar').classList.add('aberto');
+}
+
+function fecharModal() {
+  document.getElementById('modal-editar').classList.remove('aberto');
+}
+
+async function salvarEdicao(event) {
+  event.preventDefault();
+  const msg = document.getElementById('msg-edicao');
+  msg.textContent = 'Salvando...';
+  msg.className = 'mensagem';
+
+  const id = document.getElementById('e-id').value;
+  const corpo = {
+    destinatario: {
+      nome: document.getElementById('e-nome').value,
+      telefone: document.getElementById('e-telefone').value,
+    },
+    enderecoColeta: document.getElementById('e-coleta').value,
+    enderecoEntrega: document.getElementById('e-entrega').value,
+    janelaEntrega: document.getElementById('e-janela').value,
+  };
+
+  const resposta = await fetch(`/orders/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(corpo),
+  });
+  const dados = await resposta.json();
+
+  if (resposta.ok) {
+    fecharModal();
+    carregarPedidos();
+  } else {
+    msg.textContent = 'Erro: ' + (dados.detalhes ? dados.detalhes.map(d => d.mensagem).join(', ') : dados.erro);
+    msg.className = 'mensagem erro';
+  }
+}
+
+async function cancelarPedido(id) {
+  if (!confirm('Tem certeza que deseja cancelar este pedido?')) return;
+
+  const resposta = await fetch(`/orders/${id}/cancelar`, { method: 'PATCH' });
+  const dados = await resposta.json();
+
+  if (resposta.ok) {
+    carregarPedidos();
+  } else {
+    alert('Erro: ' + (dados.erro || 'Nao foi possivel cancelar'));
   }
 }
 </script>

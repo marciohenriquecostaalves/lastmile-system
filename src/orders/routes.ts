@@ -5,8 +5,10 @@ import {
   listarPedidos,
   buscarPedido,
   atualizarStatusPedido,
+  editarPedido,
+  cancelarPedido,
 } from "./store";
-import { criarPedidoSchema } from "./validation";
+import { criarPedidoSchema, editarPedidoSchema } from "./validation";
 import { exigirPapel } from "../auth/middleware";
 
 export const ordersRouter = Router();
@@ -82,6 +84,53 @@ ordersRouter.get("/:id", async (req, res) => {
   const pedido = await buscarPedido(req.params.id);
   if (!pedido) return res.status(404).json({ erro: "Pedido não encontrado" });
   res.json(paraFormatoApi(pedido));
+});
+
+ordersRouter.put("/:id", exigirPapel(...PAPEIS_ESCRITA), async (req, res) => {
+  const pedido = await buscarPedido(req.params.id);
+  if (!pedido) return res.status(404).json({ erro: "Pedido não encontrado" });
+
+  if (pedido.status !== "recebido") {
+    return res.status(400).json({
+      erro: "So e possivel editar pedidos que ainda nao entraram em rota.",
+    });
+  }
+
+  const validacao = editarPedidoSchema.safeParse(req.body);
+  if (!validacao.success) {
+    return res.status(400).json({
+      erro: "Dados invalidos",
+      detalhes: validacao.error.issues.map((i) => ({
+        campo: i.path.join("."),
+        mensagem: i.message,
+      })),
+    });
+  }
+
+  const dados = validacao.data;
+  const pedidoAtualizado = await editarPedido(req.params.id, {
+    destinatarioNome: dados.destinatario.nome,
+    destinatarioTelefone: dados.destinatario.telefone,
+    enderecoColeta: dados.enderecoColeta,
+    enderecoEntrega: dados.enderecoEntrega,
+    janelaEntrega: dados.janelaEntrega,
+  });
+
+  res.json(paraFormatoApi(pedidoAtualizado));
+});
+
+ordersRouter.patch("/:id/cancelar", exigirPapel(...PAPEIS_ESCRITA), async (req, res) => {
+  const pedido = await buscarPedido(req.params.id);
+  if (!pedido) return res.status(404).json({ erro: "Pedido não encontrado" });
+
+  if (pedido.status !== "recebido") {
+    return res.status(400).json({
+      erro: "So e possivel cancelar pedidos que ainda nao entraram em rota.",
+    });
+  }
+
+  const pedidoCancelado = await cancelarPedido(req.params.id);
+  res.json(paraFormatoApi(pedidoCancelado));
 });
 
 ordersRouter.patch("/:id/entregar", exigirPapel(...PAPEIS_ESCRITA), async (req, res) => {

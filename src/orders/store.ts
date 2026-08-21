@@ -40,3 +40,31 @@ export async function atualizarStatusPedido(
     },
   });
 }
+
+export async function editarPedido(
+  id: string,
+  dados: {
+    destinatarioNome: string;
+    destinatarioTelefone: string;
+    enderecoColeta: string;
+    enderecoEntrega: string;
+    janelaEntrega: string;
+  }
+) {
+  return prisma.order.update({
+    where: { id },
+    data: {
+      ...dados,
+      latitude: null,
+      longitude: null,
+      localizacaoAproximada: false,
+    },
+  });
+}
+
+export async function cancelarPedido(id: string) {
+  return prisma.order.update({
+    where: { id },
+    data: { status: "cancelado" },
+  });
+}
