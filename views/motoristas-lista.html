@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <title>Motoristas - Last Mile</title>
 <link rel="stylesheet" href="/assets/styles.css">
+<style>
+  .barra-filtros { display:flex; gap:12px; margin-bottom:16px; align-items:flex-end; }
+  .barra-filtros > div { flex: 1; max-width: 320px; }
+  .barra-filtros label { margin-top: 0; }
+  .contador-resultados { color: var(--ink-soft); font-size: 12px; margin-bottom: 8px; }
+</style>
 </head>
 <body>
 <div class="app-shell">
@@ -30,6 +36,14 @@
       <div id="msg-motorista" class="mensagem"></div>
     </div>
 
+    <div class="barra-filtros">
+      <div>
+        <label>Buscar</label>
+        <input id="filtro-busca" placeholder="Nome ou telefone..." oninput="aplicarFiltros()">
+      </div>
+    </div>
+    <div class="contador-resultados" id="contador-resultados"></div>
+
     <table>
       <thead><tr><th>Nome</th><th>Telefone</th><th>Veiculo</th><th>Link da rota</th></tr></thead>
       <tbody id="tabela-motoristas"></tbody>
@@ -38,6 +52,8 @@
 </div>
 <script src="/assets/nav.js"></script>
 <script>
+let motoristasCarregados = [];
+
 document.addEventListener('sessaoCarregada', () => {
   document.getElementById('form-novo-motorista').classList.toggle('oculto', !window.podeOperar);
   document.getElementById('aviso-leitura').classList.toggle('oculto', window.podeOperar);
@@ -46,14 +62,27 @@ document.addEventListener('sessaoCarregada', () => {
 
 async function carregarMotoristas() {
   const motoristas = await (await fetch('/drivers')).json();
-  document.getElementById('tabela-motoristas').innerHTML = motoristas.map(m => `
+  motoristasCarregados = motoristas;
+  aplicarFiltros();
+}
+
+function aplicarFiltros() {
+  const busca = document.getElementById('filtro-busca').value.toLowerCase().trim();
+  const filtrados = motoristasCarregados.filter(m =>
+    !busca || m.nome.toLowerCase().includes(busca) || m.telefone.includes(busca)
+  );
+
+  document.getElementById('contador-resultados').textContent =
+    `${filtrados.length} de ${motoristasCarregados.length} motorista(s)`;
+
+  document.getElementById('tabela-motoristas').innerHTML = filtrados.map(m => `
     <tr>
       <td>${m.nome}</td>
       <td>${m.telefone}</td>
       <td>${m.veiculo || '-'}</td>
       <td><a href="/motorista/${m.id}" target="_blank" class="mono" style="color:var(--accent);">/motorista/${m.id.slice(0,8)}...</a></td>
     </tr>
-  `).join('') || '<tr><td colspan="4" class="page-subtitle">Nenhum motorista ainda.</td></tr>';
+  `).join('') || '<tr><td colspan="4" class="page-subtitle">Nenhum motorista encontrado.</td></tr>';
 }
 
 async function criarMotorista(event) {

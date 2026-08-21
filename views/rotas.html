@@ -9,6 +9,10 @@
   #mapa { height: 420px; border-radius: 10px; border: 1px solid var(--border); margin-top:24px; }
   .linha-clicavel { cursor: pointer; }
   .linha-clicavel:hover { background: var(--bg); }
+  .barra-filtros { display:flex; gap:12px; margin-bottom:16px; align-items:flex-end; }
+  .barra-filtros > div { max-width:220px; }
+  .barra-filtros label { margin-top: 0; }
+  .contador-resultados { color: var(--ink-soft); font-size: 12px; margin-bottom: 8px; }
 </style>
 </head>
 <body>
@@ -33,6 +37,19 @@
       <div id="msg-rota" class="mensagem"></div>
     </div>
 
+    <div class="barra-filtros">
+      <div>
+        <label>Status</label>
+        <select id="filtro-status" onchange="aplicarFiltros()">
+          <option value="">Todos</option>
+          <option value="planejada">Planejada</option>
+          <option value="em_andamento">Em andamento</option>
+          <option value="concluida">Concluida</option>
+        </select>
+      </div>
+    </div>
+    <div class="contador-resultados" id="contador-resultados"></div>
+
     <table>
       <thead><tr><th>ID</th><th>Motorista</th><th>Paradas</th><th>Distancia (km)</th><th>Status</th></tr></thead>
       <tbody id="tabela-rotas"></tbody>
@@ -47,6 +64,7 @@
 <script>
 let mapa, camadaRota;
 let hubCoords = null;
+let rotasCarregadas = [];
 
 document.addEventListener('sessaoCarregada', async () => {
   document.getElementById('form-gerar-rota').classList.toggle('oculto', !window.podeOperar);
@@ -76,7 +94,20 @@ function iniciarMapa() {
 
 async function carregarRotas() {
   const rotas = await (await fetch('/routes')).json();
-  document.getElementById('tabela-rotas').innerHTML = rotas.map(r => `
+  rotasCarregadas = rotas;
+  aplicarFiltros();
+
+  if (rotas.length > 0) mostrarRotaNoMapa(rotas[0].id);
+}
+
+function aplicarFiltros() {
+  const statusFiltro = document.getElementById('filtro-status').value;
+  const filtradas = rotasCarregadas.filter(r => !statusFiltro || r.status === statusFiltro);
+
+  document.getElementById('contador-resultados').textContent =
+    `${filtradas.length} de ${rotasCarregadas.length} rota(s)`;
+
+  document.getElementById('tabela-rotas').innerHTML = filtradas.map(r => `
     <tr class="linha-clicavel" onclick="mostrarRotaNoMapa('${r.id}')">
       <td class="mono">${r.id.slice(0, 8)}</td>
       <td class="mono">${r.driverId ? r.driverId.slice(0, 8) : '-'}</td>
@@ -84,9 +115,7 @@ async function carregarRotas() {
       <td>${r.distanciaTotalKm}</td>
       <td><span class="badge ${r.status}">${r.status}</span></td>
     </tr>
-  `).join('') || '<tr><td colspan="5" class="page-subtitle">Nenhuma rota ainda.</td></tr>';
-
-  if (rotas.length > 0) mostrarRotaNoMapa(rotas[0].id);
+  `).join('') || '<tr><td colspan="5" class="page-subtitle">Nenhuma rota encontrada.</td></tr>';
 }
 
 async function mostrarRotaNoMapa(rotaId) {
