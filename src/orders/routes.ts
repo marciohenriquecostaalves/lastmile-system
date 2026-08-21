@@ -7,8 +7,12 @@ import {
   atualizarStatusPedido,
 } from "./store";
 import { criarPedidoSchema } from "./validation";
+import { exigirPapel } from "../auth/middleware";
 
 export const ordersRouter = Router();
+
+const PAPEIS_ESCRITA = ["gerente", "supervisor", "coordenador", "dispatcher"];
+const PAPEIS_VISAO_GLOBAL = ["gerente", "torre_controle"];
 
 function paraFormatoApi(pedido: any) {
   return {
@@ -34,7 +38,7 @@ function paraFormatoApi(pedido: any) {
   };
 }
 
-ordersRouter.post("/", async (req, res) => {
+ordersRouter.post("/", exigirPapel(...PAPEIS_ESCRITA), async (req, res) => {
   const validacao = criarPedidoSchema.safeParse(req.body);
   if (!validacao.success) {
     return res.status(400).json({
@@ -69,7 +73,7 @@ ordersRouter.post("/", async (req, res) => {
 
 ordersRouter.get("/", async (req, res) => {
   const sessao = req.session as any;
-  const filtroFilial = sessao.papel === "gerente" ? undefined : sessao.filialId;
+  const filtroFilial = PAPEIS_VISAO_GLOBAL.includes(sessao.papel) ? undefined : sessao.filialId;
   const pedidos = await listarPedidos(filtroFilial);
   res.json(pedidos.map(paraFormatoApi));
 });
@@ -80,7 +84,7 @@ ordersRouter.get("/:id", async (req, res) => {
   res.json(paraFormatoApi(pedido));
 });
 
-ordersRouter.patch("/:id/entregar", async (req, res) => {
+ordersRouter.patch("/:id/entregar", exigirPapel(...PAPEIS_ESCRITA), async (req, res) => {
   const { tipo, url } = req.body;
   const pedidoAtualizado = await atualizarStatusPedido(req.params.id, "entregue", {
     tipo,

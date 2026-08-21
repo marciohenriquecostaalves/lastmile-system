@@ -7,6 +7,8 @@ import { routingRouter } from "./routing/routes";
 import { driversRouter } from "./drivers/routes";
 import { authRouter } from "./auth/routes";
 import { motoristaRouter } from "./motorista/routes";
+import { filiaisRouter } from "./filiais/routes";
+import { usuariosRouter } from "./usuarios/routes";
 import { exigirAutenticacaoApi, exigirAutenticacaoPagina } from "./auth/middleware";
 
 const app = express();
@@ -42,6 +44,8 @@ app.use("/orders", exigirAutenticacaoApi, ordersRouter);
 app.use("/routes", exigirAutenticacaoApi, routingRouter);
 app.use("/drivers", exigirAutenticacaoApi, driversRouter);
 app.use("/motorista", motoristaRouter);
+app.use("/filiais", exigirAutenticacaoApi, filiaisRouter);
+app.use("/usuarios", exigirAutenticacaoApi, usuariosRouter);
 
 app.listen(PORT, () => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);

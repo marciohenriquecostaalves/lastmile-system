@@ -1,10 +1,14 @@
 import { Router } from "express";
 import { prisma } from "../orders/store";
 import { criarMotoristaSchema } from "./validation";
+import { exigirPapel } from "../auth/middleware";
 
 export const driversRouter = Router();
 
-driversRouter.post("/", async (req, res) => {
+const PAPEIS_ESCRITA = ["gerente", "supervisor", "coordenador", "dispatcher"];
+const PAPEIS_VISAO_GLOBAL = ["gerente", "torre_controle"];
+
+driversRouter.post("/", exigirPapel(...PAPEIS_ESCRITA), async (req, res) => {
   const validacao = criarMotoristaSchema.safeParse(req.body);
   if (!validacao.success) {
     return res.status(400).json({
@@ -18,9 +22,7 @@ driversRouter.post("/", async (req, res) => {
 
   const filialId = (req.session as any).filialId;
   if (!filialId) {
-    return res.status(400).json({
-      erro: "Seu usuario nao esta vinculado a uma filial.",
-    });
+    return res.status(400).json({ erro: "Seu usuario nao esta vinculado a uma filial." });
   }
 
   const motorista = await prisma.driver.create({
@@ -31,7 +33,7 @@ driversRouter.post("/", async (req, res) => {
 
 driversRouter.get("/", async (req, res) => {
   const sessao = req.session as any;
-  const filtroFilial = sessao.papel === "gerente" ? undefined : sessao.filialId;
+  const filtroFilial = PAPEIS_VISAO_GLOBAL.includes(sessao.papel) ? undefined : sessao.filialId;
   const motoristas = await prisma.driver.findMany({
     where: filtroFilial ? { filialId: filtroFilial } : undefined,
   });

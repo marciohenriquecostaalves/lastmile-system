@@ -4,10 +4,14 @@ import { geocodificarComFallback } from "../geocoding/geocode";
 import { atualizarStatusPedido } from "../orders/store";
 import { getHubCoords } from "./hub";
 import { calcularDistanciaComFallback } from "./distancia";
+import { exigirPapel } from "../auth/middleware";
 
 export const routingRouter = Router();
 
-routingRouter.post("/gerar", async (req, res) => {
+const PAPEIS_ESCRITA = ["gerente", "supervisor", "coordenador", "dispatcher"];
+const PAPEIS_VISAO_GLOBAL = ["gerente", "torre_controle"];
+
+routingRouter.post("/gerar", exigirPapel(...PAPEIS_ESCRITA), async (req, res) => {
   const { driverId } = req.body;
   const sessao = req.session as any;
   const filialId = sessao.filialId;
@@ -119,7 +123,7 @@ routingRouter.post("/gerar", async (req, res) => {
 
 routingRouter.get("/", async (req, res) => {
   const sessao = req.session as any;
-  const filtroFilial = sessao.papel === "gerente" ? undefined : sessao.filialId;
+  const filtroFilial = PAPEIS_VISAO_GLOBAL.includes(sessao.papel) ? undefined : sessao.filialId;
   const rotas = await prisma.route.findMany({
     where: filtroFilial ? { filialId: filtroFilial } : undefined,
     orderBy: { criadoEm: "desc" },
@@ -133,7 +137,7 @@ routingRouter.get("/:id", async (req, res) => {
   res.json(rota);
 });
 
-routingRouter.patch("/:id/iniciar", async (req, res) => {
+routingRouter.patch("/:id/iniciar", exigirPapel(...PAPEIS_ESCRITA), async (req, res) => {
   const rota = await prisma.route.update({
     where: { id: req.params.id },
     data: { status: "em_andamento" },
@@ -141,7 +145,7 @@ routingRouter.patch("/:id/iniciar", async (req, res) => {
   res.json(rota);
 });
 
-routingRouter.patch("/:id/paradas/:pedidoId/entregar", async (req, res) => {
+routingRouter.patch("/:id/paradas/:pedidoId/entregar", exigirPapel(...PAPEIS_ESCRITA), async (req, res) => {
   const { tipo, url } = req.body;
 
   const pedidoAtualizado = await atualizarStatusPedido(
