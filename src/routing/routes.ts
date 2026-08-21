@@ -3,7 +3,7 @@ import { prisma } from "../orders/store";
 import { geocodificarComFallback } from "../geocoding/geocode";
 import { atualizarStatusPedido } from "../orders/store";
 import { getHubCoords } from "./hub";
-import { calcularDistanciaKm } from "./haversine";
+import { calcularDistanciaComFallback } from "./distancia";
 
 export const routingRouter = Router();
 
@@ -50,17 +50,20 @@ routingRouter.post("/gerar", async (req, res) => {
   while (restantes.length > 0) {
     let indiceMaisProximo = 0;
     let menorDistancia = Infinity;
+    let distanciaEraReal = false;
 
-    restantes.forEach((pedido, index) => {
-      const distancia = calcularDistanciaKm(pontoAtual, {
+    for (let index = 0; index < restantes.length; index++) {
+      const pedido = restantes[index];
+      const resultado = await calcularDistanciaComFallback(pontoAtual, {
         latitude: pedido.latitude as number,
         longitude: pedido.longitude as number,
       });
-      if (distancia < menorDistancia) {
-        menorDistancia = distancia;
+      if (resultado.km < menorDistancia) {
+        menorDistancia = resultado.km;
         indiceMaisProximo = index;
+        distanciaEraReal = resultado.real;
       }
-    });
+    }
 
     const proximoPedido = restantes.splice(indiceMaisProximo, 1)[0];
     distanciaTotal += menorDistancia;
@@ -71,6 +74,7 @@ routingRouter.post("/gerar", async (req, res) => {
       codigoRastreio: proximoPedido.codigoRastreio,
       endereco: proximoPedido.enderecoEntrega,
       distanciaDoPontoAnteriorKm: Number(menorDistancia.toFixed(2)),
+      distanciaCalculadaPorRua: distanciaEraReal,
       localizacaoAproximada: proximoPedido.localizacaoAproximada,
     });
 
