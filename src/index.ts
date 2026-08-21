@@ -32,20 +32,27 @@ app.get("/health", (req, res) => {
 
 app.use("/auth", authRouter);
 
-app.get("/", exigirAutenticacaoPagina, (req, res) => {
-  res.sendFile(path.join(__dirname, "..", "views", "dashboard.html"));
-});
+function servirPagina(nomeArquivo: string) {
+  return (req: express.Request, res: express.Response) => {
+    res.sendFile(path.join(__dirname, "..", "views", nomeArquivo));
+  };
+}
 
-app.get("/motorista/:driverId", (req, res) => {
-  res.sendFile(path.join(__dirname, "..", "views", "motorista.html"));
-});
+app.get("/", exigirAutenticacaoPagina, servirPagina("inicio.html"));
+app.get("/pedidos", exigirAutenticacaoPagina, servirPagina("pedidos.html"));
+app.get("/motoristas", exigirAutenticacaoPagina, servirPagina("motoristas-lista.html"));
+app.get("/rotas", exigirAutenticacaoPagina, servirPagina("rotas.html"));
+app.get("/usuarios", exigirAutenticacaoPagina, servirPagina("usuarios.html"));
+app.get("/filiais", exigirAutenticacaoPagina, servirPagina("filiais.html"));
+
+app.get("/motorista/:driverId", servirPagina("motorista.html"));
 
 app.use("/orders", exigirAutenticacaoApi, ordersRouter);
 app.use("/routes", exigirAutenticacaoApi, routingRouter);
 app.use("/drivers", exigirAutenticacaoApi, driversRouter);
 app.use("/motorista", motoristaRouter);
-app.use("/filiais", exigirAutenticacaoApi, filiaisRouter);
-app.use("/usuarios", exigirAutenticacaoApi, usuariosRouter);
+app.use("/api/filiais", exigirAutenticacaoApi, filiaisRouter);
+app.use("/api/usuarios", exigirAutenticacaoApi, usuariosRouter);
 
 app.listen(PORT, () => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);

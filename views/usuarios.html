@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Usuarios - Last Mile</title>
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+<div class="app-shell">
+  <div id="sidebar-mount"></div>
+  <main class="main">
+    <div class="page-header">
+      <h1 class="page-title">Usuarios</h1>
+      <p class="page-subtitle">Gestao de acesso da equipe</p>
+    </div>
+
+    <div class="card" style="max-width:480px; margin-bottom:28px;">
+      <h3>Novo usuario</h3>
+      <form onsubmit="criarUsuario(event)">
+        <label>Nome</label>
+        <input required id="u-nome">
+        <label>Email</label>
+        <input required type="email" id="u-email">
+        <label>Senha inicial</label>
+        <input required type="password" id="u-senha">
+        <label>Papel</label>
+        <select id="u-papel">
+          <option value="dispatcher">Dispatcher</option>
+          <option value="coordenador">Coordenador</option>
+          <option value="supervisor">Supervisor</option>
+          <option value="torre_controle">Torre de controle</option>
+          <option value="gerente">Gerente</option>
+        </select>
+        <label>Filial (deixe em branco para papeis globais)</label>
+        <select id="u-filial"></select>
+        <div style="margin-top:16px;"><button type="submit">Criar usuario</button></div>
+      </form>
+      <div id="msg-usuario" class="mensagem"></div>
+    </div>
+
+    <table>
+      <thead><tr><th>Nome</th><th>Email</th><th>Papel</th></tr></thead>
+      <tbody id="tabela-usuarios"></tbody>
+    </table>
+  </main>
+</div>
+<script src="/assets/nav.js"></script>
+<script>
+document.addEventListener('sessaoCarregada', () => {
+  carregarUsuarios();
+  carregarFiliaisNoSelect();
+});
+
+async function carregarUsuarios() {
+  const resposta = await fetch('/api/usuarios');
+  const usuarios = await resposta.json();
+  document.getElementById('tabela-usuarios').innerHTML = usuarios.map(u => `
+    <tr>
+      <td>${u.nome}</td>
+      <td>${u.email}</td>
+      <td><span class="badge recebido">${u.papel.replace('_', ' ')}</span></td>
+    </tr>
+  `).join('') || '<tr><td colspan="3" class="page-subtitle">Nenhum usuario ainda.</td></tr>';
+}
+
+async function carregarFiliaisNoSelect() {
+  const filiais = await (await fetch('/api/filiais')).json();
+  document.getElementById('u-filial').innerHTML = '<option value="">Sem filial (papel global)</option>' +
+    filiais.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+}
+
+async function criarUsuario(event) {
+  event.preventDefault();
+  const msg = document.getElementById('msg-usuario');
+  msg.textContent = 'Enviando...';
+  msg.className = 'mensagem';
+
+  const corpo = {
+    nome: document.getElementById('u-nome').value,
+    email: document.getElementById('u-email').value,
+    senha: document.getElementById('u-senha').value,
+    papel: document.getElementById('u-papel').value,
+    filialId: document.getElementById('u-filial').value || undefined,
+  };
+
+  const resposta = await fetch('/api/usuarios', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(corpo),
+  });
+  const dados = await resposta.json();
+
+  if (resposta.ok) {
+    msg.textContent = 'Usuario criado: ' + dados.email;
+    msg.className = 'mensagem sucesso';
+    event.target.reset();
+    carregarUsuarios();
+  } else {
+    msg.textContent = 'Erro: ' + (dados.detalhes ? dados.detalhes.map(d => d.mensagem).join(', ') : dados.erro);
+    msg.className = 'mensagem erro';
+  }
+}
+</script>
+</body>
+</html>

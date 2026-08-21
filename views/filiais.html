@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Filiais - Last Mile</title>
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+<div class="app-shell">
+  <div id="sidebar-mount"></div>
+  <main class="main">
+    <div class="page-header">
+      <h1 class="page-title">Filiais</h1>
+      <p class="page-subtitle">Rede de operacoes</p>
+    </div>
+
+    <div class="card" style="max-width:420px; margin-bottom:28px;">
+      <h3>Nova filial</h3>
+      <form onsubmit="criarFilial(event)">
+        <label>Nome</label>
+        <input required id="f-nome">
+        <label>Cidade</label>
+        <input id="f-cidade">
+        <div style="margin-top:16px;"><button type="submit">Criar filial</button></div>
+      </form>
+      <div id="msg-filial" class="mensagem"></div>
+    </div>
+
+    <table>
+      <thead><tr><th>Nome</th><th>Cidade</th></tr></thead>
+      <tbody id="tabela-filiais"></tbody>
+    </table>
+  </main>
+</div>
+<script src="/assets/nav.js"></script>
+<script>
+document.addEventListener('sessaoCarregada', () => carregarFiliais());
+
+async function carregarFiliais() {
+  const filiais = await (await fetch('/api/filiais')).json();
+  document.getElementById('tabela-filiais').innerHTML = filiais.map(f => `
+    <tr><td>${f.nome}</td><td>${f.cidade || '-'}</td></tr>
+  `).join('') || '<tr><td colspan="2" class="page-subtitle">Nenhuma filial ainda.</td></tr>';
+}
+
+async function criarFilial(event) {
+  event.preventDefault();
+  const msg = document.getElementById('msg-filial');
+  msg.textContent = 'Enviando...';
+  msg.className = 'mensagem';
+
+  const corpo = {
+    nome: document.getElementById('f-nome').value,
+    cidade: document.getElementById('f-cidade').value || undefined,
+  };
+
+  const resposta = await fetch('/api/filiais', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(corpo),
+  });
+  const dados = await resposta.json();
+
+  if (resposta.ok) {
+    msg.textContent = 'Filial criada: ' + dados.nome;
+    msg.className = 'mensagem sucesso';
+    event.target.reset();
+    carregarFiliais();
+  } else {
+    msg.textContent = 'Erro: ' + (dados.erro || 'Nao foi possivel criar a filial');
+    msg.className = 'mensagem erro';
+  }
+}
+</script>
+</body>
+</html>

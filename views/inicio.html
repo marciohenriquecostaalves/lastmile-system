@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Inicio - Last Mile</title>
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+<div class="app-shell">
+  <div id="sidebar-mount"></div>
+  <main class="main">
+    <div class="page-header">
+      <h1 class="page-title">Visao geral</h1>
+      <p class="page-subtitle" id="subtitulo">Carregando...</p>
+    </div>
+    <div id="conteudo"></div>
+  </main>
+</div>
+<script src="/assets/nav.js"></script>
+<script>
+document.addEventListener('sessaoCarregada', async (e) => {
+  const sessao = e.detail;
+  const visaoGlobal = ['gerente', 'torre_controle'].includes(sessao.papel);
+
+  if (visaoGlobal) {
+    document.getElementById('subtitulo').textContent = 'Comparativo entre todas as filiais';
+    const filiais = await (await fetch('/api/filiais')).json();
+
+    if (filiais.length === 0) {
+      document.getElementById('conteudo').innerHTML = '<p class="page-subtitle">Nenhuma filial cadastrada ainda.</p>';
+      return;
+    }
+
+    const resumos = await Promise.all(
+      filiais.map(async (f) => ({
+        filial: f,
+        resumo: await (await fetch(`/api/filiais/${f.id}/resumo`)).json(),
+      }))
+    );
+
+    document.getElementById('conteudo').innerHTML = `
+      <div class="grid grid-3">
+        ${resumos.map(({ filial, resumo }) => `
+          <div class="card">
+            <h3>${filial.nome}</h3>
+            <p class="page-subtitle" style="margin-top:-10px; margin-bottom:14px;">${filial.cidade || ''}</p>
+            <div style="display:flex; flex-direction:column; gap:10px;">
+              <div><span class="stat-label">Pedidos totais</span><div class="stat-value" style="font-size:20px;">${resumo.totalPedidos}</div></div>
+              <div><span class="stat-label">Entregues</span><div class="stat-value" style="font-size:20px; color:var(--success);">${resumo.pedidosEntregues}</div></div>
+              <div><span class="stat-label">Motoristas</span><div class="stat-value" style="font-size:20px;">${resumo.totalMotoristas}</div></div>
+              <div><span class="stat-label">Rotas ativas</span><div class="stat-value" style="font-size:20px; color:var(--warning);">${resumo.rotasAtivas}</div></div>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  } else {
+    document.getElementById('subtitulo').textContent = 'Resumo da sua operacao';
+
+    const [pedidos, motoristas, rotas] = await Promise.all([
+      fetch('/orders').then(r => r.json()),
+      fetch('/drivers').then(r => r.json()),
+      fetch('/routes').then(r => r.json()),
+    ]);
+
+    const entregues = pedidos.filter(p => p.status === 'entregue').length;
+    const rotasAtivas = rotas.filter(r => ['planejada', 'em_andamento'].includes(r.status)).length;
+
+    document.getElementById('conteudo').innerHTML = `
+      <div class="grid grid-3">
+        <div class="stat-card"><div class="stat-label">Pedidos totais</div><div class="stat-value">${pedidos.length}</div></div>
+        <div class="stat-card"><div class="stat-label">Entregues</div><div class="stat-value" style="color:var(--success);">${entregues}</div></div>
+        <div class="stat-card"><div class="stat-label">Motoristas</div><div class="stat-value">${motoristas.length}</div></div>
+        <div class="stat-card"><div class="stat-label">Rotas ativas</div><div class="stat-value" style="color:var(--warning);">${rotasAtivas}</div></div>
+      </div>
+    `;
+  }
+});
+</script>
+</body>
+</html>

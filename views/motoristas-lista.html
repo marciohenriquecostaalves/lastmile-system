@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Motoristas - Last Mile</title>
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+<div class="app-shell">
+  <div id="sidebar-mount"></div>
+  <main class="main">
+    <div class="page-header">
+      <h1 class="page-title">Motoristas</h1>
+      <p class="page-subtitle">Cadastro e acompanhamento da frota</p>
+    </div>
+
+    <div id="aviso-leitura" class="aviso oculto">Seu papel tem acesso de visualizacao. Cadastro esta desabilitado.</div>
+
+    <div class="card oculto" id="form-novo-motorista" style="max-width:480px; margin-bottom:28px;">
+      <h3>Novo motorista</h3>
+      <form onsubmit="criarMotorista(event)">
+        <label>Nome</label>
+        <input required id="m-nome">
+        <label>Telefone</label>
+        <input required id="m-telefone">
+        <label>Veiculo</label>
+        <input id="m-veiculo" placeholder="Moto, Carro, Van...">
+        <div style="margin-top:16px;"><button type="submit">Cadastrar motorista</button></div>
+      </form>
+      <div id="msg-motorista" class="mensagem"></div>
+    </div>
+
+    <table>
+      <thead><tr><th>Nome</th><th>Telefone</th><th>Veiculo</th><th>Link da rota</th></tr></thead>
+      <tbody id="tabela-motoristas"></tbody>
+    </table>
+  </main>
+</div>
+<script src="/assets/nav.js"></script>
+<script>
+document.addEventListener('sessaoCarregada', (e) => {
+  const podeEscrever = ['gerente', 'supervisor', 'coordenador', 'dispatcher'].includes(e.detail.papel);
+  document.getElementById('form-novo-motorista').classList.toggle('oculto', !podeEscrever);
+  document.getElementById('aviso-leitura').classList.toggle('oculto', podeEscrever);
+  carregarMotoristas();
+});
+
+async function carregarMotoristas() {
+  const motoristas = await (await fetch('/drivers')).json();
+  document.getElementById('tabela-motoristas').innerHTML = motoristas.map(m => `
+    <tr>
+      <td>${m.nome}</td>
+      <td>${m.telefone}</td>
+      <td>${m.veiculo || '-'}</td>
+      <td><a href="/motorista/${m.id}" target="_blank" class="mono" style="color:var(--accent);">/motorista/${m.id.slice(0,8)}...</a></td>
+    </tr>
+  `).join('') || '<tr><td colspan="4" class="page-subtitle">Nenhum motorista ainda.</td></tr>';
+}
+
+async function criarMotorista(event) {
+  event.preventDefault();
+  const msg = document.getElementById('msg-motorista');
+  msg.textContent = 'Enviando...';
+  msg.className = 'mensagem';
+
+  const corpo = {
+    nome: document.getElementById('m-nome').value,
+    telefone: document.getElementById('m-telefone').value,
+    veiculo: document.getElementById('m-veiculo').value || undefined,
+  };
+
+  const resposta = await fetch('/drivers', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(corpo),
+  });
+  const dados = await resposta.json();
+
+  if (resposta.ok) {
+    msg.textContent = 'Motorista cadastrado: ' + dados.nome;
+    msg.className = 'mensagem sucesso';
+    event.target.reset();
+    carregarMotoristas();
+  } else {
+    msg.textContent = 'Erro: ' + (dados.detalhes ? dados.detalhes.map(d => d.mensagem).join(', ') : dados.erro);
+    msg.className = 'mensagem erro';
+  }
+}
+</script>
+</body>
+</html>

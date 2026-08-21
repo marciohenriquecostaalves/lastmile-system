@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Pedidos - Last Mile</title>
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+<div class="app-shell">
+  <div id="sidebar-mount"></div>
+  <main class="main">
+    <div class="page-header">
+      <h1 class="page-title">Pedidos</h1>
+      <p class="page-subtitle">Entrada e acompanhamento de pedidos de entrega</p>
+    </div>
+
+    <div id="aviso-leitura" class="aviso oculto">Seu papel tem acesso de visualizacao. Criacao esta desabilitada.</div>
+
+    <div class="card oculto" id="form-novo-pedido" style="max-width:480px; margin-bottom:28px;">
+      <h3>Novo pedido</h3>
+      <form onsubmit="criarPedido(event)">
+        <label>Nome do destinatario</label>
+        <input required id="p-nome">
+        <label>Telefone</label>
+        <input required id="p-telefone">
+        <label>Endereco de coleta</label>
+        <input required id="p-coleta">
+        <label>Endereco de entrega</label>
+        <input required id="p-entrega">
+        <label>Janela de entrega</label>
+        <input required id="p-janela" placeholder="hoje ate 18h">
+        <div style="margin-top:16px;"><button type="submit">Criar pedido</button></div>
+      </form>
+      <div id="msg-pedido" class="mensagem"></div>
+    </div>
+
+    <table>
+      <thead><tr><th>Rastreio</th><th>Destinatario</th><th>Endereco</th><th>Status</th></tr></thead>
+      <tbody id="tabela-pedidos"></tbody>
+    </table>
+  </main>
+</div>
+<script src="/assets/nav.js"></script>
+<script>
+document.addEventListener('sessaoCarregada', (e) => {
+  const podeEscrever = ['gerente', 'supervisor', 'coordenador', 'dispatcher'].includes(e.detail.papel);
+  document.getElementById('form-novo-pedido').classList.toggle('oculto', !podeEscrever);
+  document.getElementById('aviso-leitura').classList.toggle('oculto', podeEscrever);
+  carregarPedidos();
+});
+
+async function carregarPedidos() {
+  const pedidos = await (await fetch('/orders')).json();
+  document.getElementById('tabela-pedidos').innerHTML = pedidos.map(p => `
+    <tr>
+      <td class="mono">${p.codigoRastreio}</td>
+      <td>${p.destinatario.nome}</td>
+      <td>${p.enderecoEntrega}</td>
+      <td><span class="badge ${p.status}">${p.status}</span></td>
+    </tr>
+  `).join('') || '<tr><td colspan="4" class="page-subtitle">Nenhum pedido ainda.</td></tr>';
+}
+
+async function criarPedido(event) {
+  event.preventDefault();
+  const msg = document.getElementById('msg-pedido');
+  msg.textContent = 'Enviando...';
+  msg.className = 'mensagem';
+
+  const corpo = {
+    destinatario: {
+      nome: document.getElementById('p-nome').value,
+      telefone: document.getElementById('p-telefone').value,
+    },
+    enderecoColeta: document.getElementById('p-coleta').value,
+    enderecoEntrega: document.getElementById('p-entrega').value,
+    janelaEntrega: document.getElementById('p-janela').value,
+  };
+
+  const resposta = await fetch('/orders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(corpo),
+  });
+  const dados = await resposta.json();
+
+  if (resposta.ok) {
+    msg.textContent = 'Pedido criado: ' + dados.codigoRastreio;
+    msg.className = 'mensagem sucesso';
+    event.target.reset();
+    carregarPedidos();
+  } else {
+    msg.textContent = 'Erro: ' + (dados.detalhes ? dados.detalhes.map(d => d.mensagem).join(', ') : dados.erro);
+    msg.className = 'mensagem erro';
+  }
+}
+</script>
+</body>
+</html>

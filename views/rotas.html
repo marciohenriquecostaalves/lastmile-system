@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Rotas - Last Mile</title>
+<link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+<div class="app-shell">
+  <div id="sidebar-mount"></div>
+  <main class="main">
+    <div class="page-header">
+      <h1 class="page-title">Rotas</h1>
+      <p class="page-subtitle">Geracao e acompanhamento de rotas de entrega</p>
+    </div>
+
+    <div id="aviso-leitura" class="aviso oculto">Seu papel tem acesso de visualizacao. Geracao de rotas esta desabilitada.</div>
+
+    <div class="card oculto" id="form-gerar-rota" style="max-width:420px; margin-bottom:28px;">
+      <h3>Gerar rota</h3>
+      <p class="page-subtitle" style="margin-top:-8px;">Agrupa todos os pedidos pendentes da sua filial na rota mais eficiente.</p>
+      <form onsubmit="gerarRota(event)">
+        <label>Motorista</label>
+        <select id="r-motorista"><option value="">Sem motorista definido</option></select>
+        <div style="margin-top:16px;"><button type="submit">Gerar rota com pedidos pendentes</button></div>
+      </form>
+      <div id="msg-rota" class="mensagem"></div>
+    </div>
+
+    <table>
+      <thead><tr><th>ID</th><th>Motorista</th><th>Paradas</th><th>Distancia (km)</th><th>Status</th></tr></thead>
+      <tbody id="tabela-rotas"></tbody>
+    </table>
+  </main>
+</div>
+<script src="/assets/nav.js"></script>
+<script>
+document.addEventListener('sessaoCarregada', async (e) => {
+  const podeEscrever = ['gerente', 'supervisor', 'coordenador', 'dispatcher'].includes(e.detail.papel);
+  document.getElementById('form-gerar-rota').classList.toggle('oculto', !podeEscrever);
+  document.getElementById('aviso-leitura').classList.toggle('oculto', podeEscrever);
+
+  if (podeEscrever) {
+    const motoristas = await (await fetch('/drivers')).json();
+    document.getElementById('r-motorista').innerHTML = '<option value="">Sem motorista definido</option>' +
+      motoristas.map(m => `<option value="${m.id}">${m.nome}</option>`).join('');
+  }
+
+  carregarRotas();
+});
+
+async function carregarRotas() {
+  const rotas = await (await fetch('/routes')).json();
+  document.getElementById('tabela-rotas').innerHTML = rotas.map(r => `
+    <tr>
+      <td class="mono">${r.id.slice(0, 8)}</td>
+      <td class="mono">${r.driverId ? r.driverId.slice(0, 8) : '-'}</td>
+      <td>${r.paradas.length}</td>
+      <td>${r.distanciaTotalKm}</td>
+      <td><span class="badge ${r.status}">${r.status}</span></td>
+    </tr>
+  `).join('') || '<tr><td colspan="5" class="page-subtitle">Nenhuma rota ainda.</td></tr>';
+}
+
+async function gerarRota(event) {
+  event.preventDefault();
+  const msg = document.getElementById('msg-rota');
+  msg.textContent = 'Gerando rota (pode levar alguns segundos)...';
+  msg.className = 'mensagem';
+
+  const driverId = document.getElementById('r-motorista').value;
+  const resposta = await fetch('/routes/gerar', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(driverId ? { driverId } : {}),
+  });
+  const dados = await resposta.json();
+
+  if (resposta.ok) {
+    msg.textContent = `Rota gerada com ${dados.paradas.length} parada(s), ${dados.distanciaTotalKm} km.`;
+    msg.className = 'mensagem sucesso';
+    carregarRotas();
+  } else {
+    msg.textContent = 'Erro: ' + (dados.erro || 'Nao foi possivel gerar a rota');
+    msg.className = 'mensagem erro';
+  }
+}
+</script>
+</body>
+</html>
