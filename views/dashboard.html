@@ -17,9 +17,11 @@
   .badge.planejada { background:#334155; }
   .badge.em_andamento { background:#854d0e; }
   .badge.concluida { background:#166534; }
+  .badge.papel { background:#1e40af; }
   button { background:#0284c7; color:white; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:14px; }
   button:hover { background:#0369a1; }
   .topo { display:flex; justify-content:space-between; align-items:center; }
+  .usuario-info { font-size:13px; color:#94a3b8; }
   .btn-sair { background:#334155; }
   .btn-sair:hover { background:#475569; }
   .painel-forms { display:flex; gap:24px; flex-wrap:wrap; margin-top:16px; }
@@ -31,16 +33,25 @@
   .mensagem { margin-top:8px; font-size:13px; }
   .mensagem.sucesso { color:#4ade80; }
   .mensagem.erro { color:#f87171; }
+  .oculto { display:none; }
+  .aviso-somente-leitura { background:#1e293b; border-left:3px solid #38bdf8; padding:12px; margin-top:16px; font-size:13px; color:#cbd5e1; }
 </style>
 </head>
 <body>
   <div class="topo">
-    <h1>Last Mile — Painel Operacional</h1>
+    <div>
+      <h1>Last Mile — Painel Operacional</h1>
+      <div class="usuario-info" id="info-usuario"></div>
+    </div>
     <button class="btn-sair" onclick="sair()">Sair</button>
   </div>
   <button onclick="carregarTudo()">Atualizar</button>
 
-  <div class="painel-forms">
+  <div id="aviso-leitura" class="aviso-somente-leitura oculto">
+    Seu papel tem acesso de visualizacao. Criacao e edicao de dados estao desabilitadas.
+  </div>
+
+  <div class="painel-forms" id="forms-operacionais">
     <div class="card">
       <h3>Novo Pedido</h3>
       <form onsubmit="criarPedido(event)">
@@ -86,6 +97,44 @@
     </div>
   </div>
 
+  <div class="painel-forms oculto" id="forms-gestao">
+    <div class="card">
+      <h3>Novo Usuario</h3>
+      <form onsubmit="criarUsuario(event)">
+        <label>Nome</label>
+        <input required id="u-nome">
+        <label>Email</label>
+        <input required type="email" id="u-email">
+        <label>Senha inicial</label>
+        <input required type="password" id="u-senha">
+        <label>Papel</label>
+        <select id="u-papel">
+          <option value="dispatcher">Dispatcher</option>
+          <option value="coordenador">Coordenador</option>
+          <option value="supervisor">Supervisor</option>
+          <option value="torre_controle">Torre de Controle</option>
+          <option value="gerente">Gerente</option>
+        </select>
+        <label>Filial (deixe em branco para papeis globais)</label>
+        <select id="u-filial"></select>
+        <button type="submit">Criar usuario</button>
+      </form>
+      <div id="msg-usuario" class="mensagem"></div>
+    </div>
+
+    <div class="card">
+      <h3>Nova Filial</h3>
+      <form onsubmit="criarFilial(event)">
+        <label>Nome</label>
+        <input required id="f-nome">
+        <label>Cidade</label>
+        <input id="f-cidade">
+        <button type="submit">Criar filial</button>
+      </form>
+      <div id="msg-filial" class="mensagem"></div>
+    </div>
+  </div>
+
   <h2>Pedidos</h2>
   <table>
     <thead><tr><th>Rastreio</th><th>Destinatario</th><th>Endereco</th><th>Status</th></tr></thead>
@@ -104,7 +153,43 @@
     <tbody id="tabela-motoristas"></tbody>
   </table>
 
+  <h2 id="titulo-usuarios" class="oculto">Usuarios</h2>
+  <table id="tabela-usuarios-wrap" class="oculto">
+    <thead><tr><th>Nome</th><th>Email</th><th>Papel</th></tr></thead>
+    <tbody id="tabela-usuarios"></tbody>
+  </table>
+
 <script>
+let papelAtual = null;
+
+async function carregarUsuarioLogado() {
+  const resposta = await fetch('/auth/status');
+  const dados = await resposta.json();
+
+  if (!dados.autenticado) {
+    window.location.href = '/login.html';
+    return;
+  }
+
+  papelAtual = dados.papel;
+  document.getElementById('info-usuario').textContent =
+    'Papel: ' + dados.papel + (dados.filialId ? '' : ' (visao global)');
+
+  const podeEscrever = ['gerente', 'supervisor', 'coordenador', 'dispatcher'].includes(papelAtual);
+  const podeGerenciarUsuarios = ['gerente', 'supervisor'].includes(papelAtual);
+
+  document.getElementById('forms-operacionais').classList.toggle('oculto', !podeEscrever);
+  document.getElementById('aviso-leitura').classList.toggle('oculto', podeEscrever);
+  document.getElementById('forms-gestao').classList.toggle('oculto', !podeGerenciarUsuarios);
+  document.getElementById('titulo-usuarios').classList.toggle('oculto', !podeGerenciarUsuarios);
+  document.getElementById('tabela-usuarios-wrap').classList.toggle('oculto', !podeGerenciarUsuarios);
+
+  if (podeGerenciarUsuarios) {
+    carregarUsuarios();
+    carregarFiliaisNoSelect();
+  }
+}
+
 async function sair() {
   await fetch('/auth/logout', { method: 'POST' });
   window.location.href = '/login.html';
@@ -152,8 +237,32 @@ async function carregarMotoristas() {
   `).join('');
 
   const select = document.getElementById('r-motorista');
-  select.innerHTML = '<option value="">Sem motorista definido</option>' +
-    motoristas.map(m => `<option value="${m.id}">${m.nome}</option>`).join('');
+  if (select) {
+    select.innerHTML = '<option value="">Sem motorista definido</option>' +
+      motoristas.map(m => `<option value="${m.id}">${m.nome}</option>`).join('');
+  }
+}
+
+async function carregarUsuarios() {
+  const resposta = await fetch('/usuarios');
+  if (!resposta.ok) return;
+  const usuarios = await resposta.json();
+  const corpo = document.getElementById('tabela-usuarios');
+  corpo.innerHTML = usuarios.map(u => `
+    <tr>
+      <td>${u.nome}</td>
+      <td>${u.email}</td>
+      <td><span class="badge papel">${u.papel}</span></td>
+    </tr>
+  `).join('');
+}
+
+async function carregarFiliaisNoSelect() {
+  const resposta = await fetch('/filiais');
+  const filiais = await resposta.json();
+  const select = document.getElementById('u-filial');
+  select.innerHTML = '<option value="">Sem filial (papel global)</option>' +
+    filiais.map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
 }
 
 function carregarTudo() {
@@ -252,6 +361,68 @@ async function gerarRota(event) {
   }
 }
 
+async function criarUsuario(event) {
+  event.preventDefault();
+  const msg = document.getElementById('msg-usuario');
+  msg.textContent = 'Enviando...';
+  msg.className = 'mensagem';
+
+  const corpo = {
+    nome: document.getElementById('u-nome').value,
+    email: document.getElementById('u-email').value,
+    senha: document.getElementById('u-senha').value,
+    papel: document.getElementById('u-papel').value,
+    filialId: document.getElementById('u-filial').value || undefined,
+  };
+
+  const resposta = await fetch('/usuarios', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(corpo),
+  });
+  const dados = await resposta.json();
+
+  if (resposta.ok) {
+    msg.textContent = 'Usuario criado: ' + dados.email;
+    msg.className = 'mensagem sucesso';
+    event.target.reset();
+    carregarUsuarios();
+  } else {
+    msg.textContent = 'Erro: ' + (dados.detalhes ? dados.detalhes.map(d => d.mensagem).join(', ') : dados.erro);
+    msg.className = 'mensagem erro';
+  }
+}
+
+async function criarFilial(event) {
+  event.preventDefault();
+  const msg = document.getElementById('msg-filial');
+  msg.textContent = 'Enviando...';
+  msg.className = 'mensagem';
+
+  const corpo = {
+    nome: document.getElementById('f-nome').value,
+    cidade: document.getElementById('f-cidade').value || undefined,
+  };
+
+  const resposta = await fetch('/filiais', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(corpo),
+  });
+  const dados = await resposta.json();
+
+  if (resposta.ok) {
+    msg.textContent = 'Filial criada: ' + dados.nome;
+    msg.className = 'mensagem sucesso';
+    event.target.reset();
+    carregarFiliaisNoSelect();
+  } else {
+    msg.textContent = 'Erro: ' + (dados.erro || 'Nao foi possivel criar a filial');
+    msg.className = 'mensagem erro';
+  }
+}
+
+carregarUsuarioLogado();
 carregarTudo();
 </script>
 </body>
