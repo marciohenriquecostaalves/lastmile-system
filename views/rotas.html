@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <title>Rotas - Last Mile</title>
 <link rel="stylesheet" href="/assets/styles.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  #mapa { height: 420px; border-radius: 10px; border: 1px solid var(--border); margin-top:24px; }
+  .linha-clicavel { cursor: pointer; }
+  .linha-clicavel:hover { background: var(--bg); }
+</style>
 </head>
 <body>
 <div class="app-shell">
@@ -31,10 +37,17 @@
       <thead><tr><th>ID</th><th>Motorista</th><th>Paradas</th><th>Distancia (km)</th><th>Status</th></tr></thead>
       <tbody id="tabela-rotas"></tbody>
     </table>
+
+    <p class="page-subtitle" style="margin-top:20px;">Clique em uma rota na tabela acima para ver o trajeto no mapa.</p>
+    <div id="mapa"></div>
   </main>
 </div>
 <script src="/assets/nav.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
+let mapa, camadaRota;
+let hubCoords = null;
+
 document.addEventListener('sessaoCarregada', async (e) => {
   const podeEscrever = ['gerente', 'supervisor', 'coordenador', 'dispatcher'].includes(e.detail.papel);
   document.getElementById('form-gerar-rota').classList.toggle('oculto', !podeEscrever);
@@ -46,13 +59,26 @@ document.addEventListener('sessaoCarregada', async (e) => {
       motoristas.map(m => `<option value="${m.id}">${m.nome}</option>`).join('');
   }
 
+  hubCoords = await (await fetch('/routes/hub')).json();
+  iniciarMapa();
   carregarRotas();
 });
+
+function iniciarMapa() {
+  mapa = L.map('mapa').setView([hubCoords.latitude, hubCoords.longitude], 11);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors',
+  }).addTo(mapa);
+
+  L.marker([hubCoords.latitude, hubCoords.longitude], {
+    icon: L.divIcon({ className: '', html: '<div style="background:#14213D;width:14px;height:14px;border-radius:3px;border:2px solid white;"></div>' })
+  }).addTo(mapa).bindPopup('Hub (ponto de partida)');
+}
 
 async function carregarRotas() {
   const rotas = await (await fetch('/routes')).json();
   document.getElementById('tabela-rotas').innerHTML = rotas.map(r => `
-    <tr>
+    <tr class="linha-clicavel" onclick="mostrarRotaNoMapa('${r.id}')">
       <td class="mono">${r.id.slice(0, 8)}</td>
       <td class="mono">${r.driverId ? r.driverId.slice(0, 8) : '-'}</td>
       <td>${r.paradas.length}</td>
@@ -60,6 +86,36 @@ async function carregarRotas() {
       <td><span class="badge ${r.status}">${r.status}</span></td>
     </tr>
   `).join('') || '<tr><td colspan="5" class="page-subtitle">Nenhuma rota ainda.</td></tr>';
+
+  if (rotas.length > 0) mostrarRotaNoMapa(rotas[0].id);
+}
+
+async function mostrarRotaNoMapa(rotaId) {
+  const rota = await (await fetch(`/routes/${rotaId}`)).json();
+
+  if (camadaRota) mapa.removeLayer(camadaRota);
+
+  const paradasComCoordenadas = rota.paradas.filter(p => p.latitude && p.longitude);
+
+  if (paradasComCoordenadas.length === 0) {
+    camadaRota = L.layerGroup().addTo(mapa);
+    return;
+  }
+
+  const pontos = [[hubCoords.latitude, hubCoords.longitude], ...paradasComCoordenadas.map(p => [p.latitude, p.longitude])];
+
+  const grupo = L.layerGroup();
+  L.polyline(pontos, { color: '#2451B3', weight: 3, dashArray: '6 4' }).addTo(grupo);
+
+  paradasComCoordenadas.forEach(p => {
+    L.marker([p.latitude, p.longitude])
+      .addTo(grupo)
+      .bindPopup(`<strong>${p.sequencia}. ${p.codigoRastreio}</strong><br>${p.endereco}${p.localizacaoAproximada ? '<br><em>Localizacao aproximada</em>' : ''}`);
+  });
+
+  grupo.addTo(mapa);
+  camadaRota = grupo;
+  mapa.fitBounds(pontos, { padding: [30, 30] });
 }
 
 async function gerarRota(event) {

@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <title>Inicio - Last Mile</title>
 <link rel="stylesheet" href="/assets/styles.css">
+<style>
+  .grafico-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-top: 28px; }
+  .grafico-card h3 { font-family: var(--font-display); font-size: 15px; margin: 0 0 16px; }
+</style>
 </head>
 <body>
 <div class="app-shell">
@@ -14,9 +18,14 @@
       <p class="page-subtitle" id="subtitulo">Carregando...</p>
     </div>
     <div id="conteudo"></div>
+    <div class="grafico-card">
+      <h3 id="titulo-grafico">Pedidos por status</h3>
+      <canvas id="grafico-status" height="90"></canvas>
+    </div>
   </main>
 </div>
 <script src="/assets/nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script>
 document.addEventListener('sessaoCarregada', async (e) => {
   const sessao = e.detail;
@@ -54,6 +63,13 @@ document.addEventListener('sessaoCarregada', async (e) => {
         `).join('')}
       </div>
     `;
+
+    document.getElementById('titulo-grafico').textContent = 'Pedidos entregues por filial';
+    desenharGrafico(
+      resumos.map(r => r.filial.nome),
+      resumos.map(r => r.resumo.pedidosEntregues),
+      resumos.map(r => r.resumo.totalPedidos - r.resumo.pedidosEntregues)
+    );
   } else {
     document.getElementById('subtitulo').textContent = 'Resumo da sua operacao';
 
@@ -64,6 +80,8 @@ document.addEventListener('sessaoCarregada', async (e) => {
     ]);
 
     const entregues = pedidos.filter(p => p.status === 'entregue').length;
+    const emRota = pedidos.filter(p => p.status === 'em_rota').length;
+    const recebidos = pedidos.filter(p => p.status === 'recebido').length;
     const rotasAtivas = rotas.filter(r => ['planejada', 'em_andamento'].includes(r.status)).length;
 
     document.getElementById('conteudo').innerHTML = `
@@ -74,8 +92,48 @@ document.addEventListener('sessaoCarregada', async (e) => {
         <div class="stat-card"><div class="stat-label">Rotas ativas</div><div class="stat-value" style="color:var(--warning);">${rotasAtivas}</div></div>
       </div>
     `;
+
+    document.getElementById('titulo-grafico').textContent = 'Pedidos por status';
+    desenharGraficoStatus(recebidos, emRota, entregues);
   }
 });
+
+function desenharGrafico(labels, entregues, pendentes) {
+  new Chart(document.getElementById('grafico-status'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Entregues', data: entregues, backgroundColor: '#1F7A53', borderRadius: 4 },
+        { label: 'Pendentes', data: pendentes, backgroundColor: '#E4E2DC', borderRadius: 4 },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom', labels: { font: { family: 'IBM Plex Sans' } } } },
+      scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } },
+    },
+  });
+}
+
+function desenharGraficoStatus(recebidos, emRota, entregues) {
+  new Chart(document.getElementById('grafico-status'), {
+    type: 'bar',
+    data: {
+      labels: ['Recebido', 'Em rota', 'Entregue'],
+      datasets: [{
+        data: [recebidos, emRota, entregues],
+        backgroundColor: ['#2451B3', '#B7791F', '#1F7A53'],
+        borderRadius: 4,
+      }],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+    },
+  });
+}
 </script>
 </body>
 </html>

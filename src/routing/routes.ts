@@ -11,6 +11,11 @@ export const routingRouter = Router();
 const PAPEIS_ESCRITA = ["gerente", "supervisor", "coordenador", "dispatcher"];
 const PAPEIS_VISAO_GLOBAL = ["gerente", "torre_controle"];
 
+routingRouter.get("/hub", async (req, res) => {
+  const hub = await getHubCoords();
+  res.json(hub);
+});
+
 routingRouter.post("/gerar", exigirPapel(...PAPEIS_ESCRITA), async (req, res) => {
   const { driverId } = req.body;
   const sessao = req.session as any;
@@ -83,6 +88,8 @@ routingRouter.post("/gerar", exigirPapel(...PAPEIS_ESCRITA), async (req, res) =>
       pedidoId: proximoPedido.id,
       codigoRastreio: proximoPedido.codigoRastreio,
       endereco: proximoPedido.enderecoEntrega,
+      latitude: proximoPedido.latitude,
+      longitude: proximoPedido.longitude,
       distanciaDoPontoAnteriorKm: Number(menorDistancia.toFixed(2)),
       distanciaCalculadaPorRua: distanciaEraReal,
       localizacaoAproximada: proximoPedido.localizacaoAproximada,
