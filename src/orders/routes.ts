@@ -22,6 +22,7 @@ function paraFormatoApi(pedido: any) {
     enderecoEntrega: pedido.enderecoEntrega,
     janelaEntrega: pedido.janelaEntrega,
     status: pedido.status,
+    filialId: pedido.filialId,
     comprovante: pedido.comprovanteTipo
       ? {
           tipo: pedido.comprovanteTipo,
@@ -35,7 +36,6 @@ function paraFormatoApi(pedido: any) {
 
 ordersRouter.post("/", async (req, res) => {
   const validacao = criarPedidoSchema.safeParse(req.body);
-
   if (!validacao.success) {
     return res.status(400).json({
       erro: "Dados invalidos",
@@ -43,6 +43,13 @@ ordersRouter.post("/", async (req, res) => {
         campo: i.path.join("."),
         mensagem: i.message,
       })),
+    });
+  }
+
+  const filialId = (req.session as any).filialId;
+  if (!filialId) {
+    return res.status(400).json({
+      erro: "Seu usuario nao esta vinculado a uma filial. Peca ao gerente para configurar.",
     });
   }
 
@@ -55,12 +62,15 @@ ordersRouter.post("/", async (req, res) => {
     enderecoColeta: dados.enderecoColeta,
     enderecoEntrega: dados.enderecoEntrega,
     janelaEntrega: dados.janelaEntrega,
+    filialId,
   });
   res.status(201).json(paraFormatoApi(novoPedido));
 });
 
 ordersRouter.get("/", async (req, res) => {
-  const pedidos = await listarPedidos();
+  const sessao = req.session as any;
+  const filtroFilial = sessao.papel === "gerente" ? undefined : sessao.filialId;
+  const pedidos = await listarPedidos(filtroFilial);
   res.json(pedidos.map(paraFormatoApi));
 });
 

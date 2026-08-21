@@ -7,6 +7,28 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Filial {
+  id         String    @id @default(uuid())
+  nome       String
+  cidade     String?
+  criadoEm   DateTime  @default(now())
+  usuarios   Usuario[]
+  motoristas Driver[]
+  pedidos    Order[]
+  rotas      Route[]
+}
+
+model Usuario {
+  id        String   @id @default(uuid())
+  nome      String
+  email     String   @unique
+  senhaHash String
+  papel     String
+  filialId  String?
+  filial    Filial?  @relation(fields: [filialId], references: [id])
+  criadoEm  DateTime @default(now())
+}
+
 model Order {
   id                    String    @id @default(uuid())
   codigoRastreio        String    @unique
@@ -22,15 +44,19 @@ model Order {
   comprovanteTipo       String?
   comprovanteUrl        String?
   comprovanteData       DateTime?
+  filialId              String
+  filial                Filial    @relation(fields: [filialId], references: [id])
   criadoEm              DateTime  @default(now())
 }
 
 model Driver {
-  id        String   @id @default(uuid())
-  nome      String
-  telefone  String
-  veiculo   String?
-  criadoEm  DateTime @default(now())
+  id       String   @id @default(uuid())
+  nome     String
+  telefone String
+  veiculo  String?
+  filialId String
+  filial   Filial   @relation(fields: [filialId], references: [id])
+  criadoEm DateTime @default(now())
 }
 
 model Route {
@@ -39,5 +65,7 @@ model Route {
   distanciaTotalKm Float
   paradas          Json
   status           String   @default("planejada")
+  filialId         String
+  filial           Filial   @relation(fields: [filialId], references: [id])
   criadoEm         DateTime @default(now())
 }

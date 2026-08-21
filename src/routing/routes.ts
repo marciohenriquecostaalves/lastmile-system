@@ -9,9 +9,15 @@ export const routingRouter = Router();
 
 routingRouter.post("/gerar", async (req, res) => {
   const { driverId } = req.body;
+  const sessao = req.session as any;
+  const filialId = sessao.filialId;
+
+  if (!filialId) {
+    return res.status(400).json({ erro: "Seu usuario nao esta vinculado a uma filial." });
+  }
 
   const pedidosPendentes = await prisma.order.findMany({
-    where: { status: "recebido" },
+    where: { status: "recebido", filialId },
   });
 
   for (const pedido of pedidosPendentes) {
@@ -90,6 +96,7 @@ routingRouter.post("/gerar", async (req, res) => {
       distanciaTotalKm: Number(distanciaTotal.toFixed(2)),
       paradas: paradas,
       status: "planejada",
+      filialId,
     },
   });
 
@@ -111,7 +118,12 @@ routingRouter.post("/gerar", async (req, res) => {
 });
 
 routingRouter.get("/", async (req, res) => {
-  const rotas = await prisma.route.findMany({ orderBy: { criadoEm: "desc" } });
+  const sessao = req.session as any;
+  const filtroFilial = sessao.papel === "gerente" ? undefined : sessao.filialId;
+  const rotas = await prisma.route.findMany({
+    where: filtroFilial ? { filialId: filtroFilial } : undefined,
+    orderBy: { criadoEm: "desc" },
+  });
   res.json(rotas);
 });
 

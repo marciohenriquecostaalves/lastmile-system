@@ -9,12 +9,16 @@ export async function criarPedido(dados: {
   enderecoColeta: string;
   enderecoEntrega: string;
   janelaEntrega: string;
+  filialId: string;
 }) {
   return prisma.order.create({ data: dados });
 }
 
-export async function listarPedidos() {
-  return prisma.order.findMany();
+export async function listarPedidos(filialId?: string) {
+  return prisma.order.findMany({
+    where: filialId ? { filialId } : undefined,
+    orderBy: { criadoEm: "desc" },
+  });
 }
 
 export async function buscarPedido(id: string) {
