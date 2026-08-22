@@ -60,21 +60,22 @@ async function montarNavegacao() {
   `;
 
   document.dispatchEvent(new CustomEvent('sessaoCarregada', { detail: dados }));
-  atualizarContadorNotificacoes();
-  setInterval(atualizarContadorNotificacoes, 20000);
+  window.atualizarContadorNotificacoes();
+  setInterval(window.atualizarContadorNotificacoes, 20000);
 }
 
-async function atualizarContadorNotificacoes() {
+window.atualizarContadorNotificacoes = async function () {
   const resposta = await fetch('/api/notificacoes/nao-lidas');
   const dados = await resposta.json();
   const badge = document.getElementById('badge-notificacoes');
+  if (!badge) return;
   if (dados.total > 0) {
     badge.textContent = dados.total > 9 ? '9+' : dados.total;
     badge.classList.remove('oculto');
   } else {
     badge.classList.add('oculto');
   }
-}
+};
 
 async function alternarPainelNotificacoes(event) {
   event.stopPropagation();
@@ -101,7 +102,7 @@ async function marcarNotificacaoLida(id, elemento) {
   await fetch(`/api/notificacoes/${id}/lida`, { method: 'PATCH' });
   elemento.style.opacity = '0.55';
   elemento.style.background = 'transparent';
-  atualizarContadorNotificacoes();
+  window.atualizarContadorNotificacoes();
 }
 
 document.addEventListener('click', () => {

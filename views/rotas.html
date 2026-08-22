@@ -164,6 +164,7 @@ async function gerarRota(event) {
     msg.textContent = `Rota gerada com ${dados.paradas.length} parada(s), ${dados.distanciaTotalKm} km.`;
     msg.className = 'mensagem sucesso';
     carregarRotas();
+    if (window.atualizarContadorNotificacoes) window.atualizarContadorNotificacoes();
   } else {
     msg.textContent = 'Erro: ' + (dados.erro || 'Nao foi possivel gerar a rota');
     msg.className = 'mensagem erro';
