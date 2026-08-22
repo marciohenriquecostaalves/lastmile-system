@@ -13,6 +13,12 @@
   .barra-filtros > div { max-width:220px; }
   .barra-filtros label { margin-top: 0; }
   .contador-resultados { color: var(--ink-soft); font-size: 12px; margin-bottom: 8px; }
+  .lista-checkbox { max-height:140px; overflow-y:auto; border:1px solid var(--border); border-radius:6px; padding:8px; margin-top:4px; }
+  .lista-checkbox label { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--ink); font-weight:400; margin:0; padding:4px 0; }
+  .lista-checkbox input { width:auto; }
+  .tabs-rota { display:flex; gap:4px; margin-bottom:16px; }
+  .tab-rota { padding:7px 14px; border-radius:6px; border:1px solid var(--border); background:var(--surface); cursor:pointer; font-size:13px; }
+  .tab-rota.ativa { background:var(--accent); color:white; border-color:var(--accent); }
 </style>
 </head>
 <body>
@@ -26,15 +32,26 @@
 
     <div id="aviso-leitura" class="aviso oculto">Seu papel tem acesso de visualizacao (ou nao esta vinculado a uma filial). Geracao de rotas esta desabilitada.</div>
 
-    <div class="card oculto" id="form-gerar-rota" style="max-width:420px; margin-bottom:28px;">
-      <h3>Gerar rota</h3>
-      <p class="page-subtitle" style="margin-top:-8px;">Agrupa todos os pedidos pendentes da sua filial na rota mais eficiente.</p>
-      <form onsubmit="gerarRota(event)">
-        <label>Motorista</label>
-        <select id="r-motorista"><option value="">Sem motorista definido</option></select>
-        <div style="margin-top:16px;"><button type="submit">Gerar rota com pedidos pendentes</button></div>
-      </form>
-      <div id="msg-rota" class="mensagem"></div>
+    <div class="grid grid-2 oculto" id="forms-gerar" style="margin-bottom:28px;">
+      <div class="card">
+        <h3>Gerar rota individual</h3>
+        <p class="page-subtitle" style="margin-top:-8px;">Agrupa todos os pedidos pendentes em uma unica rota.</p>
+        <form onsubmit="gerarRota(event)">
+          <label>Motorista</label>
+          <select id="r-motorista"><option value="">Sem motorista definido</option></select>
+          <div style="margin-top:16px;"><button type="submit">Gerar rota unica</button></div>
+        </form>
+        <div id="msg-rota" class="mensagem"></div>
+      </div>
+
+      <div class="card">
+        <h3>Distribuir entre motoristas</h3>
+        <p class="page-subtitle" style="margin-top:-8px;">Divide os pedidos pendentes geograficamente entre varios motoristas.</p>
+        <label>Selecione 2 ou mais motoristas</label>
+        <div class="lista-checkbox" id="lista-motoristas-checkbox"></div>
+        <div style="margin-top:16px;"><button onclick="gerarMultiplasRotas()">Distribuir pedidos</button></div>
+        <div id="msg-multiplas" class="mensagem"></div>
+      </div>
     </div>
 
     <div class="barra-filtros">
@@ -55,25 +72,30 @@
       <tbody id="tabela-rotas"></tbody>
     </table>
 
-    <p class="page-subtitle" style="margin-top:20px;">Clique em uma rota na tabela acima para ver o trajeto no mapa.</p>
+    <p class="page-subtitle" style="margin-top:20px;">Clique em uma rota na tabela acima para ver o trajeto no mapa. Rotas geradas juntas aparecem com cores diferentes.</p>
     <div id="mapa"></div>
   </main>
 </div>
 <script src="/assets/nav.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
-let mapa, camadaRota;
+let mapa, camadasAtivas = [];
 let hubCoords = null;
 let rotasCarregadas = [];
+const CORES_ROTA = ['#2451B3', '#1F7A53', '#B7791F', '#B42318', '#7C3AED', '#0891B2'];
 
 document.addEventListener('sessaoCarregada', async () => {
-  document.getElementById('form-gerar-rota').classList.toggle('oculto', !window.podeOperar);
+  document.getElementById('forms-gerar').classList.toggle('oculto', !window.podeOperar);
   document.getElementById('aviso-leitura').classList.toggle('oculto', window.podeOperar);
 
   if (window.podeOperar) {
     const motoristas = await (await fetch('/drivers')).json();
     document.getElementById('r-motorista').innerHTML = '<option value="">Sem motorista definido</option>' +
       motoristas.map(m => `<option value="${m.id}">${m.nome}</option>`).join('');
+
+    document.getElementById('lista-motoristas-checkbox').innerHTML = motoristas.map(m => `
+      <label><input type="checkbox" value="${m.id}"> ${m.nome}</label>
+    `).join('') || '<span class="page-subtitle">Nenhum motorista cadastrado.</span>';
   }
 
   hubCoords = await (await fetch('/routes/hub')).json();
@@ -118,32 +140,38 @@ function aplicarFiltros() {
   `).join('') || '<tr><td colspan="5" class="page-subtitle">Nenhuma rota encontrada.</td></tr>';
 }
 
+function limparMapa() {
+  camadasAtivas.forEach(c => mapa.removeLayer(c));
+  camadasAtivas = [];
+}
+
 async function mostrarRotaNoMapa(rotaId) {
   const rota = await (await fetch(`/routes/${rotaId}`)).json();
+  limparMapa();
+  desenharRotaNoMapa(rota, 0);
+}
 
-  if (camadaRota) mapa.removeLayer(camadaRota);
-
+function desenharRotaNoMapa(rota, indiceCor) {
   const paradasComCoordenadas = rota.paradas.filter(p => p.latitude && p.longitude);
+  if (paradasComCoordenadas.length === 0) return;
 
-  if (paradasComCoordenadas.length === 0) {
-    camadaRota = L.layerGroup().addTo(mapa);
-    return;
-  }
-
+  const cor = CORES_ROTA[indiceCor % CORES_ROTA.length];
   const pontos = [[hubCoords.latitude, hubCoords.longitude], ...paradasComCoordenadas.map(p => [p.latitude, p.longitude])];
 
   const grupo = L.layerGroup();
-  L.polyline(pontos, { color: '#2451B3', weight: 3, dashArray: '6 4' }).addTo(grupo);
+  L.polyline(pontos, { color: cor, weight: 3, dashArray: '6 4' }).addTo(grupo);
 
   paradasComCoordenadas.forEach(p => {
-    L.marker([p.latitude, p.longitude])
+    L.circleMarker([p.latitude, p.longitude], { radius: 7, color: cor, fillColor: cor, fillOpacity: 0.9 })
       .addTo(grupo)
       .bindPopup(`<strong>${p.sequencia}. ${p.codigoRastreio}</strong><br>${p.endereco}${p.localizacaoAproximada ? '<br><em>Localizacao aproximada</em>' : ''}`);
   });
 
   grupo.addTo(mapa);
-  camadaRota = grupo;
-  mapa.fitBounds(pontos, { padding: [30, 30] });
+  camadasAtivas.push(grupo);
+
+  const todosPontos = camadasAtivas.flatMap(g => Object.values(g._layers).flatMap(l => l.getLatLng ? [l.getLatLng()] : (l.getLatLngs ? l.getLatLngs() : [])));
+  if (todosPontos.length > 0) mapa.fitBounds(todosPontos, { padding: [30, 30] });
 }
 
 async function gerarRota(event) {
@@ -167,6 +195,42 @@ async function gerarRota(event) {
     if (window.atualizarContadorNotificacoes) window.atualizarContadorNotificacoes();
   } else {
     msg.textContent = 'Erro: ' + (dados.erro || 'Nao foi possivel gerar a rota');
+    msg.className = 'mensagem erro';
+  }
+}
+
+async function gerarMultiplasRotas() {
+  const msg = document.getElementById('msg-multiplas');
+  const checkboxes = document.querySelectorAll('#lista-motoristas-checkbox input:checked');
+  const driverIds = Array.from(checkboxes).map(c => c.value);
+
+  if (driverIds.length < 2) {
+    msg.textContent = 'Selecione pelo menos 2 motoristas.';
+    msg.className = 'mensagem erro';
+    return;
+  }
+
+  msg.textContent = 'Distribuindo pedidos (pode levar um pouco mais de tempo)...';
+  msg.className = 'mensagem';
+
+  const resposta = await fetch('/routes/gerar-multiplas', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ driverIds }),
+  });
+  const dados = await resposta.json();
+
+  if (resposta.ok) {
+    msg.textContent = `${dados.rotas.length} rota(s) geradas com sucesso.`;
+    msg.className = 'mensagem sucesso';
+    carregarRotas();
+
+    limparMapa();
+    dados.rotas.forEach((rota, indice) => desenharRotaNoMapa(rota, indice));
+
+    if (window.atualizarContadorNotificacoes) window.atualizarContadorNotificacoes();
+  } else {
+    msg.textContent = 'Erro: ' + (dados.erro || 'Nao foi possivel distribuir as rotas');
     msg.className = 'mensagem erro';
   }
 }

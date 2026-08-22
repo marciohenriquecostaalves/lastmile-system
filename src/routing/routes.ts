@@ -6,6 +6,9 @@ import { getHubCoords } from "./hub";
 import { calcularDistanciaComFallback } from "./distancia";
 import { exigirPapel } from "../auth/middleware";
 import { criarNotificacao } from "../notificacoes/store";
+import { geocodificarPedidosPendentes } from "./geocodificarPendentes";
+import { sequenciarRota } from "./sequenciar";
+import { clusterizarPedidos } from "./clusterizar";
 
 export const routingRouter = Router();
 
@@ -30,82 +33,14 @@ routingRouter.post("/gerar", exigirPapel(...PAPEIS_ESCRITA), async (req, res) =>
     where: { status: "recebido", filialId },
   });
 
-  for (const pedido of pedidosPendentes) {
-    if (pedido.latitude === null || pedido.longitude === null) {
-      const resultado = await geocodificarComFallback(pedido.enderecoEntrega);
-      if (resultado) {
-        await prisma.order.update({
-          where: { id: pedido.id },
-          data: {
-            latitude: resultado.latitude,
-            longitude: resultado.longitude,
-            localizacaoAproximada: resultado.aproximado,
-          },
-        });
-        pedido.latitude = resultado.latitude;
-        pedido.longitude = resultado.longitude;
-        pedido.localizacaoAproximada = resultado.aproximado;
-      }
-    }
-  }
-
-  const pedidosComCoordenadas = pedidosPendentes.filter(
-    (p) => p.latitude !== null && p.longitude !== null
-  );
-  const pedidosSemLocalizacao = pedidosPendentes.filter(
-    (p) => p.latitude === null || p.longitude === null
-  );
-
+  const { comCoordenadas, semLocalizacao } = await geocodificarPedidosPendentes(pedidosPendentes);
   const hub = await getHubCoords();
-
-  const restantes = [...pedidosComCoordenadas];
-  const paradas: any[] = [];
-  let pontoAtual = hub;
-  let distanciaTotal = 0;
-
-  while (restantes.length > 0) {
-    let indiceMaisProximo = 0;
-    let menorDistancia = Infinity;
-    let distanciaEraReal = false;
-
-    for (let index = 0; index < restantes.length; index++) {
-      const pedido = restantes[index];
-      const resultado = await calcularDistanciaComFallback(pontoAtual, {
-        latitude: pedido.latitude as number,
-        longitude: pedido.longitude as number,
-      });
-      if (resultado.km < menorDistancia) {
-        menorDistancia = resultado.km;
-        indiceMaisProximo = index;
-        distanciaEraReal = resultado.real;
-      }
-    }
-
-    const proximoPedido = restantes.splice(indiceMaisProximo, 1)[0];
-    distanciaTotal += menorDistancia;
-
-    paradas.push({
-      sequencia: paradas.length + 1,
-      pedidoId: proximoPedido.id,
-      codigoRastreio: proximoPedido.codigoRastreio,
-      endereco: proximoPedido.enderecoEntrega,
-      latitude: proximoPedido.latitude,
-      longitude: proximoPedido.longitude,
-      distanciaDoPontoAnteriorKm: Number(menorDistancia.toFixed(2)),
-      distanciaCalculadaPorRua: distanciaEraReal,
-      localizacaoAproximada: proximoPedido.localizacaoAproximada,
-    });
-
-    pontoAtual = {
-      latitude: proximoPedido.latitude as number,
-      longitude: proximoPedido.longitude as number,
-    };
-  }
+  const { paradas, distanciaTotal } = await sequenciarRota(comCoordenadas, hub);
 
   const rotaSalva = await prisma.route.create({
     data: {
       driverId: driverId ?? null,
-      distanciaTotalKm: Number(distanciaTotal.toFixed(2)),
+      distanciaTotalKm: distanciaTotal,
       paradas: paradas,
       status: "planejada",
       filialId,
@@ -127,7 +62,79 @@ routingRouter.post("/gerar", exigirPapel(...PAPEIS_ESCRITA), async (req, res) =>
 
   res.status(201).json({
     ...rotaSalva,
-    pedidosNaoLocalizados: pedidosSemLocalizacao.map((p) => ({
+    pedidosNaoLocalizados: semLocalizacao.map((p) => ({
+      pedidoId: p.id,
+      codigoRastreio: p.codigoRastreio,
+      endereco: p.enderecoEntrega,
+    })),
+  });
+});
+
+routingRouter.post("/gerar-multiplas", exigirPapel(...PAPEIS_ESCRITA), async (req, res) => {
+  const { driverIds } = req.body as { driverIds: string[] };
+  const sessao = req.session as any;
+  const filialId = sessao.filialId;
+
+  if (!filialId) {
+    return res.status(400).json({ erro: "Seu usuario nao esta vinculado a uma filial." });
+  }
+
+  if (!Array.isArray(driverIds) || driverIds.length < 2) {
+    return res.status(400).json({ erro: "Selecione pelo menos 2 motoristas para distribuir." });
+  }
+
+  const pedidosPendentes = await prisma.order.findMany({
+    where: { status: "recebido", filialId },
+  });
+
+  const { comCoordenadas, semLocalizacao } = await geocodificarPedidosPendentes(pedidosPendentes);
+
+  if (comCoordenadas.length === 0) {
+    return res.status(400).json({
+      erro: "Nenhum pedido pendente com localizacao valida para distribuir.",
+      pedidosNaoLocalizados: semLocalizacao,
+    });
+  }
+
+  const hub = await getHubCoords();
+  const grupos = clusterizarPedidos(comCoordenadas, driverIds.length);
+
+  const rotasCriadas = [];
+
+  for (let i = 0; i < grupos.length; i++) {
+    const grupo = grupos[i];
+    if (grupo.length === 0) continue;
+
+    const driverId = driverIds[i] ?? null;
+    const { paradas, distanciaTotal } = await sequenciarRota(grupo, hub);
+
+    const rotaSalva = await prisma.route.create({
+      data: {
+        driverId,
+        distanciaTotalKm: distanciaTotal,
+        paradas,
+        status: "planejada",
+        filialId,
+      },
+    });
+
+    await prisma.order.updateMany({
+      where: { id: { in: paradas.map((p) => p.pedidoId) } },
+      data: { status: "em_rota" },
+    });
+
+    rotasCriadas.push(rotaSalva);
+  }
+
+  await criarNotificacao({
+    filialId,
+    tipo: "rota_gerada",
+    mensagem: `${rotasCriadas.length} rota(s) geradas e distribuidas entre ${driverIds.length} motorista(s)`,
+  });
+
+  res.status(201).json({
+    rotas: rotasCriadas,
+    pedidosNaoLocalizados: semLocalizacao.map((p) => ({
       pedidoId: p.id,
       codigoRastreio: p.codigoRastreio,
       endereco: p.enderecoEntrega,
