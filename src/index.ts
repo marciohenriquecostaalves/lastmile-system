@@ -10,6 +10,7 @@ import { motoristaRouter } from "./motorista/routes";
 import { filiaisRouter } from "./filiais/routes";
 import { usuariosRouter } from "./usuarios/routes";
 import { notificacoesRouter } from "./notificacoes/routes";
+import { rastreioRouter } from "./rastreio/routes";
 import { exigirAutenticacaoApi, exigirAutenticacaoPagina } from "./auth/middleware";
 
 const app = express();
@@ -47,6 +48,7 @@ app.get("/usuarios", exigirAutenticacaoPagina, servirPagina("usuarios.html"));
 app.get("/filiais", exigirAutenticacaoPagina, servirPagina("filiais.html"));
 
 app.get("/motorista/:driverId", servirPagina("motorista.html"));
+app.get("/rastrear", servirPagina("rastrear.html"));
 
 app.use("/orders", exigirAutenticacaoApi, ordersRouter);
 app.use("/routes", exigirAutenticacaoApi, routingRouter);
@@ -55,6 +57,7 @@ app.use("/motorista", motoristaRouter);
 app.use("/api/filiais", exigirAutenticacaoApi, filiaisRouter);
 app.use("/api/usuarios", exigirAutenticacaoApi, usuariosRouter);
 app.use("/api/notificacoes", exigirAutenticacaoApi, notificacoesRouter);
+app.use("/api/rastreio", rastreioRouter);
 
 app.listen(PORT, () => {
   console.log(`Servidor rodando em http://localhost:${PORT}`);

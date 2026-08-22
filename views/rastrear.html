@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Rastrear pedido - Last Mile</title>
+<link rel="stylesheet" href="/assets/styles.css">
+<style>
+  body { display:flex; justify-content:center; padding:60px 20px; }
+  .caixa { width:480px; max-width:100%; }
+  .marca { font-family:var(--font-display); font-weight:700; font-size:20px; margin-bottom:24px; text-align:center; }
+  .marca span { color:var(--accent); }
+  .busca-form { display:flex; gap:8px; margin-bottom:32px; }
+  .busca-form input { flex:1; }
+  .resultado { display:none; }
+  .resultado.visivel { display:block; }
+  .timeline { display:flex; justify-content:space-between; margin:32px 0 8px; position:relative; }
+  .timeline::before { content:''; position:absolute; top:11px; left:20px; right:20px; height:2px; background:var(--border); z-index:0; }
+  .etapa { display:flex; flex-direction:column; align-items:center; gap:8px; z-index:1; flex:1; }
+  .etapa .bolinha { width:24px; height:24px; border-radius:50%; background:var(--border); border:3px solid var(--surface); }
+  .etapa.concluida .bolinha { background:var(--success); }
+  .etapa.atual .bolinha { background:var(--accent); }
+  .etapa span { font-size:11.5px; color:var(--ink-soft); text-align:center; }
+  .etapa.concluida span, .etapa.atual span { color:var(--ink); font-weight:600; }
+  .detalhes { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:20px; margin-top:20px; }
+  .detalhes p { margin:6px 0; font-size:13.5px; }
+  .detalhes strong { color:var(--ink-soft); font-weight:500; }
+  .status-cancelado { background:var(--danger-soft); color:var(--danger); border-radius:8px; padding:14px; text-align:center; font-weight:600; margin-top:20px; }
+</style>
+</head>
+<body>
+  <div class="caixa">
+    <div class="marca">Last Mile <span>OS</span></div>
+
+    <form class="busca-form" onsubmit="buscarPedido(event)">
+      <input id="codigo" placeholder="Digite seu codigo de rastreio (ex: LM-XXXXXXXX)" required>
+      <button type="submit">Rastrear</button>
+    </form>
+
+    <div id="mensagem" class="mensagem"></div>
+
+    <div id="resultado" class="resultado">
+      <div id="timeline-container"></div>
+      <div class="detalhes" id="detalhes"></div>
+    </div>
+  </div>
+
+<script>
+async function buscarPedido(event) {
+  event.preventDefault();
+  const codigo = document.getElementById('codigo').value.trim();
+  const msg = document.getElementById('mensagem');
+  const resultado = document.getElementById('resultado');
+
+  msg.textContent = 'Buscando...';
+  msg.className = 'mensagem';
+  resultado.classList.remove('visivel');
+
+  const resposta = await fetch(`/api/rastreio/${encodeURIComponent(codigo)}`);
+  const dados = await resposta.json();
+
+  if (!resposta.ok) {
+    msg.textContent = dados.erro || 'Pedido nao encontrado';
+    msg.className = 'mensagem erro';
+    return;
+  }
+
+  msg.textContent = '';
+
+  if (dados.status === 'cancelado') {
+    document.getElementById('timeline-container').innerHTML = '';
+    document.getElementById('detalhes').innerHTML = `
+      <div class="status-cancelado">Este pedido foi cancelado</div>
+      <p style="margin-top:16px;"><strong>Codigo:</strong> ${dados.codigoRastreio}</p>
+    `;
+    resultado.classList.add('visivel');
+    return;
+  }
+
+  const nomesEtapas = ['Recebido', 'Em rota', 'Entregue'];
+  document.getElementById('timeline-container').innerHTML = `
+    <div class="timeline">
+      ${nomesEtapas.map((nome, i) => `
+        <div class="etapa ${i < dados.etapaAtual ? 'concluida' : ''} ${i === dados.etapaAtual ? 'atual' : ''}">
+          <div class="bolinha"></div>
+          <span>${nome}</span>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  document.getElementById('detalhes').innerHTML = `
+    <p><strong>Codigo:</strong> ${dados.codigoRastreio}</p>
+    <p><strong>Destinatario:</strong> ${dados.destinatario}</p>
+    <p><strong>Regiao de entrega:</strong> ${dados.cidadeAproximada}</p>
+    <p><strong>Janela de entrega:</strong> ${dados.janelaEntrega}</p>
+    ${dados.motoristaNome ? `<p><strong>Motorista:</strong> ${dados.motoristaNome}</p>` : ''}
+    ${dados.entregueEm ? `<p><strong>Entregue em:</strong> ${new Date(dados.entregueEm).toLocaleString('pt-BR')}</p>` : ''}
+  `;
+
+  resultado.classList.add('visivel');
+}
+</script>
+</body>
+</html>
