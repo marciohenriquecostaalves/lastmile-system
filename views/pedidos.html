@@ -179,6 +179,7 @@ async function criarPedido(event) {
     msg.className = 'mensagem sucesso';
     event.target.reset();
     carregarPedidos();
+    if (window.atualizarContadorNotificacoes) window.atualizarContadorNotificacoes();
   } else {
     msg.textContent = 'Erro: ' + (dados.detalhes ? dados.detalhes.map(d => d.mensagem).join(', ') : dados.erro);
     msg.className = 'mensagem erro';
@@ -244,6 +245,7 @@ async function cancelarPedido(id) {
 
   if (resposta.ok) {
     carregarPedidos();
+    if (window.atualizarContadorNotificacoes) window.atualizarContadorNotificacoes();
   } else {
     alert('Erro: ' + (dados.erro || 'Nao foi possivel cancelar'));
   }

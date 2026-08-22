@@ -10,6 +10,7 @@ import {
 } from "./store";
 import { criarPedidoSchema, editarPedidoSchema } from "./validation";
 import { exigirPapel } from "../auth/middleware";
+import { criarNotificacao } from "../notificacoes/store";
 
 export const ordersRouter = Router();
 
@@ -70,6 +71,13 @@ ordersRouter.post("/", exigirPapel(...PAPEIS_ESCRITA), async (req, res) => {
     janelaEntrega: dados.janelaEntrega,
     filialId,
   });
+
+  await criarNotificacao({
+    filialId,
+    tipo: "pedido_criado",
+    mensagem: `Novo pedido ${novoPedido.codigoRastreio} criado para ${novoPedido.destinatarioNome}`,
+  });
+
   res.status(201).json(paraFormatoApi(novoPedido));
 });
 
@@ -130,6 +138,13 @@ ordersRouter.patch("/:id/cancelar", exigirPapel(...PAPEIS_ESCRITA), async (req, 
   }
 
   const pedidoCancelado = await cancelarPedido(req.params.id);
+
+  await criarNotificacao({
+    filialId: pedido.filialId,
+    tipo: "pedido_cancelado",
+    mensagem: `Pedido ${pedido.codigoRastreio} foi cancelado`,
+  });
+
   res.json(paraFormatoApi(pedidoCancelado));
 });
 

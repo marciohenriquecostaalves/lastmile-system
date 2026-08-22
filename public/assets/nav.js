@@ -27,7 +27,15 @@ async function montarNavegacao() {
   const mount = document.getElementById('sidebar-mount');
   mount.innerHTML = `
     <div class="sidebar">
-      <div class="sidebar-brand">Last Mile <span>OS</span></div>
+      <div class="sidebar-brand" style="display:flex; justify-content:space-between; align-items:center;">
+        <span>Last Mile <span style="color:var(--accent);">OS</span></span>
+        <div style="position:relative;">
+          <button id="btn-notificacoes" onclick="alternarPainelNotificacoes(event)" style="background:none; border:none; padding:4px; cursor:pointer; color:var(--ink-soft);">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8a5 5 0 0110 0c0 3 1 4 1 4H4s1-1 1-4zM8.5 15a1.5 1.5 0 003 0"/></svg>
+          </button>
+          <span id="badge-notificacoes" class="oculto" style="position:absolute; top:-2px; right:-2px; background:var(--danger); color:white; font-size:9px; font-weight:700; width:15px; height:15px; border-radius:50%; display:flex; align-items:center; justify-content:center;"></span>
+        </div>
+      </div>
       <nav class="sidebar-nav">
         ${itensVisiveis.map(item => `
           <a href="${item.path}" class="nav-item ${caminhoAtual === item.path ? 'active' : ''}">
@@ -44,10 +52,62 @@ async function montarNavegacao() {
         <button class="btn-secondary" style="width:100%" onclick="sairDoSistema()">Sair</button>
       </div>
     </div>
+
+    <div id="painel-notificacoes" class="oculto" style="position:fixed; top:16px; left:250px; width:320px; max-height:400px; overflow-y:auto; background:var(--surface); border:1px solid var(--border); border-radius:10px; box-shadow:0 8px 24px rgba(20,33,61,0.12); z-index:20; padding:12px;">
+      <div style="font-family:var(--font-display); font-weight:600; font-size:13px; padding:4px 8px 10px; border-bottom:1px solid var(--border); margin-bottom:8px;">Notificacoes</div>
+      <div id="lista-notificacoes"></div>
+    </div>
   `;
 
   document.dispatchEvent(new CustomEvent('sessaoCarregada', { detail: dados }));
+  atualizarContadorNotificacoes();
+  setInterval(atualizarContadorNotificacoes, 20000);
 }
+
+async function atualizarContadorNotificacoes() {
+  const resposta = await fetch('/api/notificacoes/nao-lidas');
+  const dados = await resposta.json();
+  const badge = document.getElementById('badge-notificacoes');
+  if (dados.total > 0) {
+    badge.textContent = dados.total > 9 ? '9+' : dados.total;
+    badge.classList.remove('oculto');
+  } else {
+    badge.classList.add('oculto');
+  }
+}
+
+async function alternarPainelNotificacoes(event) {
+  event.stopPropagation();
+  const painel = document.getElementById('painel-notificacoes');
+  const estaAberto = !painel.classList.contains('oculto');
+
+  if (estaAberto) {
+    painel.classList.add('oculto');
+    return;
+  }
+
+  const notificacoes = await (await fetch('/api/notificacoes')).json();
+  document.getElementById('lista-notificacoes').innerHTML = notificacoes.map(n => `
+    <div onclick="marcarNotificacaoLida('${n.id}', this)" style="padding:8px; border-radius:6px; cursor:pointer; font-size:12.5px; margin-bottom:2px; ${n.lida ? 'opacity:0.55;' : 'background:var(--accent-soft);'}">
+      <div>${n.mensagem}</div>
+      <div style="color:var(--ink-soft); font-size:11px; margin-top:2px;">${new Date(n.criadoEm).toLocaleString('pt-BR')}</div>
+    </div>
+  `).join('') || '<div class="page-subtitle" style="padding:8px;">Nenhuma notificacao ainda.</div>';
+
+  painel.classList.remove('oculto');
+}
+
+async function marcarNotificacaoLida(id, elemento) {
+  await fetch(`/api/notificacoes/${id}/lida`, { method: 'PATCH' });
+  elemento.style.opacity = '0.55';
+  elemento.style.background = 'transparent';
+  atualizarContadorNotificacoes();
+}
+
+document.addEventListener('click', () => {
+  const painel = document.getElementById('painel-notificacoes');
+  if (painel) painel.classList.add('oculto');
+});
 
 async function sairDoSistema() {
   await fetch('/auth/logout', { method: 'POST' });

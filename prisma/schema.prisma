@@ -69,3 +69,12 @@ model Route {
   filial           Filial   @relation(fields: [filialId], references: [id])
   criadoEm         DateTime @default(now())
 }
+
+model Notificacao {
+  id        String   @id @default(uuid())
+  filialId  String?
+  tipo      String
+  mensagem  String
+  lida      Boolean  @default(false)
+  criadoEm  DateTime @default(now())
+}

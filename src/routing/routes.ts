@@ -5,6 +5,7 @@ import { atualizarStatusPedido } from "../orders/store";
 import { getHubCoords } from "./hub";
 import { calcularDistanciaComFallback } from "./distancia";
 import { exigirPapel } from "../auth/middleware";
+import { criarNotificacao } from "../notificacoes/store";
 
 export const routingRouter = Router();
 
@@ -116,6 +117,12 @@ routingRouter.post("/gerar", exigirPapel(...PAPEIS_ESCRITA), async (req, res) =>
       where: { id: { in: paradas.map((p) => p.pedidoId) } },
       data: { status: "em_rota" },
     });
+
+    await criarNotificacao({
+      filialId,
+      tipo: "rota_gerada",
+      mensagem: `Rota gerada com ${paradas.length} parada(s), ${rotaSalva.distanciaTotalKm} km`,
+    });
   }
 
   res.status(201).json({
@@ -177,6 +184,12 @@ routingRouter.patch("/:id/paradas/:pedidoId/entregar", exigirPapel(...PAPEIS_ESC
     await prisma.route.update({
       where: { id: req.params.id },
       data: { status: "concluida" },
+    });
+
+    await criarNotificacao({
+      filialId: rota.filialId,
+      tipo: "rota_concluida",
+      mensagem: `Rota com ${paradas.length} parada(s) foi concluida`,
     });
   }
 
